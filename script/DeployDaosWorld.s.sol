@@ -20,8 +20,8 @@ contract DeployDaosWorld is Script {
         // Deploy DaosWorldV1
 
 
-        uint256 fundraisingGoal = 100 ether; // 100 
-        uint256 maxWhitelistAmount = 10 ether; // Max 10 ETH per whitelist
+        uint256 fundraisingGoal = 0.0001 ether; // 100 
+        uint256 maxWhitelistAmount = 0.1 ether; // Max 10 ETH per whitelist
         uint256 maxPublicContributionAmount = 20 ether; // Max 20 ETH for public contribution
        
 
@@ -31,7 +31,7 @@ contract DeployDaosWorld is Script {
  uint256 fundExpiry = fundraisingDeadline + 30 days; // 30 days after deadline
         
         address daoManager = vm.addr(deployerPrivateKey); // Address derived from the deployer private key
-        address liquidityLockerFactory = address(0x4086781DB8a2f843C7917a56e462f4A19c5537eb); // Replace with actual address
+        address liquidityLockerFactory = address(0xcf8509772315bC2800CB4B4b64F419742ADC2Bb8); // Replace with actual address
      
         address protocolAdmin = daoManager; // Protocol admin same as DAO manager
 

@@ -14,13 +14,13 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
     using SafeERC20 for ERC20;
     using TickMath for int24;
 
-    uint24 public constant UNI_V3_FEE = 10000;
+    uint24 public constant UNI_V3_FEE = 500;
     uint256 public constant SUPPLY_TO_LP = 100_000_000 ether;
     IUniswapV3Factory public constant UNISWAP_V3_FACTORY = IUniswapV3Factory(0x5091730383fE325040813281231D323049Eeaf8b);
     INonfungiblePositionManager public constant POSITION_MANAGER =
-        INonfungiblePositionManager(0xEF3e32154B5Fb96D56D339e655A5edf5f5661Af8);
-    address public constant WETH = 0xcc9ffcfBDFE629e9C62776fF01a75235F466794E;
-    ILockerFactory public liquidityLockerFactory;
+        INonfungiblePositionManager(0xEF3e32154B5Fb96D56D339e655A5edf5f5661Af8); //this is for positionManager
+    address public constant WETH = 0xcc9ffcfBDFE629e9C62776fF01a75235F466794E;  //this is for weth
+    ILockerFactory public liquidityLockerFactory; 
     address public liquidityLocker;
 
     uint256 public totalRaised;
@@ -52,6 +52,19 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
     event Refund(address indexed contributor, uint256 amount);
     event AddWhitelist(address);
     event RemoveWhitelist(address);
+     event Sender(address);
+
+
+     event DebugLog(string message);
+event MintDetails(address indexed contributor, uint256 tokensToMint);
+event PoolCreated(address indexed pool);
+event PoolInitialized(uint160 sqrtPriceX96);
+event MintParamsCreated(uint256 tokenId, address token0, address token1, uint256 liquidity);
+event TokenApproved(address indexed token, uint256 amount);
+event LPTokenMinted(uint256 tokenId);
+event LockerDeployed(address indexed lockerAddress);
+event TokenTransferredToLocker(uint256 tokenId, address lockerAddress);
+event LockerInitialized(uint256 tokenId);
 
     constructor(
         uint256 _fundraisingGoal,
@@ -154,63 +167,88 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
     }
 
     // Finalize the fundraising and distribute tokens
-    function finalizeFundraising(int24 initialTick, int24 upperTick, bytes32 salt) external onlyOwner {
-        require(goalReached, "Fundraising goal not reached");
-        require(!fundraisingFinalized, "DAO tokens already minted");
-        require(daoToken != address(0), "Token not set");
-        DaosWorldV1Token token = DaosWorldV1Token(daoToken);
+    function finalizeFundraising(int24 initialTick, int24 upperTick) external {
+    require(goalReached, "Fundraising goal not reached");
+    require(!fundraisingFinalized, "DAO tokens already minted");
+    require(daoToken != address(0), "Token not set");
 
-        daoToken = address(token);
-        require(address(token) < WETH, "Invalid salt");
-        // Mint and distribute tokens to all contributors
-        for (uint256 i = 0; i < contributors.length; i++) {
-            address contributor = contributors[i];
-            uint256 contribution = contributions[contributor];
-            uint256 tokensToMint = (contribution * SUPPLY_TO_FUNDRAISERS) / totalRaised;
+    emit DebugLog("Starting finalizeFundraising");
+    DaosWorldV1Token token = DaosWorldV1Token(daoToken);
 
-            token.mint(contributor, tokensToMint);
-        }
+    daoToken = address(token);
 
-        emit FundraisingFinalized(true);
-        fundraisingFinalized = true;
+    // Mint and distribute tokens to all contributors
+    for (uint256 i = 0; i < contributors.length; i++) {
+        address contributor = contributors[i];
+        uint256 contribution = contributions[contributor];
+        uint256 tokensToMint = (contribution * SUPPLY_TO_FUNDRAISERS) / totalRaised;
 
-        // setup the uniswap v3 pool
-        uint160 sqrtPriceX96 = initialTick.getSqrtRatioAtTick();
-        address pool = UNISWAP_V3_FACTORY.createPool(address(token), WETH, UNI_V3_FEE);
-        IUniswapV3Factory(pool).initialize(sqrtPriceX96);
+        emit MintDetails(contributor, tokensToMint);
 
-        INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams(
-            address(token),
-            WETH,
-            UNI_V3_FEE,
-            initialTick,
-            upperTick,
-            SUPPLY_TO_LP,
-            0,
-            0,
-            0,
-            address(this),
-            block.timestamp
-        );
-
-        // mint 100M more tokens for LP
-        token.mint(address(this), SUPPLY_TO_LP);
-        // transfer ownership to 0 address so no more tokens can be minted
-        token.renounceOwnership();
-
-        token.approve(address(POSITION_MANAGER), SUPPLY_TO_LP);
-        (uint256 tokenId,,,) = POSITION_MANAGER.mint(params);
-
-        address lockerAddress = liquidityLockerFactory.deploy(
-            address(POSITION_MANAGER), owner(), uint64(fundExpiry), tokenId, lpFeesCut, address(this)
-        );
-
-        POSITION_MANAGER.safeTransferFrom(address(this), lockerAddress, tokenId);
-
-        ILocker(lockerAddress).initializer(tokenId);
-        liquidityLocker = lockerAddress;
+        token.mint(contributor, tokensToMint);
     }
 
+    emit FundraisingFinalized(true);
+    fundraisingFinalized = true;
+
+    // Setup the uniswap v3 pool
+    uint160 sqrtPriceX96 = initialTick.getSqrtRatioAtTick();
+    emit DebugLog("Calculated sqrtPriceX96");
+    address pool = UNISWAP_V3_FACTORY.createPool(address(token), WETH, UNI_V3_FEE);
+    emit PoolCreated(pool);
+    IUniswapV3Factory(pool).initialize(sqrtPriceX96);
+    emit PoolInitialized(sqrtPriceX96);
+
+    INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams(
+        address(token),
+        WETH,
+        UNI_V3_FEE,
+        initialTick,
+        upperTick,
+        SUPPLY_TO_LP,
+        0,
+        0,
+        0,
+        address(this),
+        block.timestamp
+    );
+
+    // Mint additional tokens for LP
+    token.mint(address(this), SUPPLY_TO_LP);
+    emit DebugLog("Minted additional tokens for LP");
+    token.renounceOwnership();
+    emit DebugLog("Ownership renounced");
+
+    // Approve tokens for POSITION_MANAGER
+    token.approve(address(POSITION_MANAGER), SUPPLY_TO_LP);
+    emit TokenApproved(address(token), SUPPLY_TO_LP);
+
+    (uint256 tokenId,,,) = POSITION_MANAGER.mint(params);
+    emit LPTokenMinted(tokenId);
+
+    // Deploy the liquidity locker
+    address lockerAddress = liquidityLockerFactory.deploy(
+        address(POSITION_MANAGER), owner(), uint64(fundExpiry), tokenId, lpFeesCut, address(this)
+    );
+    emit LockerDeployed(lockerAddress);
+
+    // Transfer LP token to the locker
+    POSITION_MANAGER.safeTransferFrom(address(this), lockerAddress, tokenId);
+    emit TokenTransferredToLocker(tokenId, lockerAddress);
+
+    // Initialize the locker
+    ILocker(lockerAddress).initializer(tokenId);
+    emit LockerInitialized(tokenId);
+
+    liquidityLocker = lockerAddress;
+    emit DebugLog("Finalize fundraising complete");
+}
+
+function setDaoToken(address _daoToken) external onlyOwner {
+    require(_daoToken != address(0), "Invalid DAO token address");
+    require(daoToken == address(0), "DAO token already set");
+    daoToken = _daoToken;
+}
     // Allow contributors to get a refund if the goal is not reached
     function refund() external nonReentrant {
         require(!goalReached, "Fundraising goal was reached");

@@ -27,8 +27,7 @@ contract DeployLpLocker is Script {
             daoManager,
             fundExpiry,
             protocolFee,
-            protocolAdmin,
-            daoTreasury
+            protocolAdmin
         );
 
         console2.log("LpLocker deployed at:", address(lpLocker));
