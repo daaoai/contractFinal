@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.19;
+pragma solidity ^0.8.19;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IPool} from "./interfaces/IPool.sol";
@@ -485,7 +485,7 @@ contract Pool is IPool, ERC20Permit, ReentrancyGuard {
         return _symbol;
     }
 
-    function _beforeTokenTransfer(address from, address to, uint256) internal override {
+    function _beforeTokenTransfer(address from, address to, uint256) internal  {
         _updateFor(from);
         _updateFor(to);
     }
