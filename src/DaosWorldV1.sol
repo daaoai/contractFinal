@@ -17,9 +17,15 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
     uint24 public constant UNI_V3_FEE = 500;
     uint256 public constant SUPPLY_TO_LP = 100_000_000 ether;
     IUniswapV3Factory public constant UNISWAP_V3_FACTORY = IUniswapV3Factory(0x5091730383fE325040813281231D323049Eeaf8b);
-    INonfungiblePositionManager public constant POSITION_MANAGER =
-        INonfungiblePositionManager(0xEF3e32154B5Fb96D56D339e655A5edf5f5661Af8); //this is for positionManager
+     //this is for positionManager
     address public constant WETH = 0xcc9ffcfBDFE629e9C62776fF01a75235F466794E;  //this is for weth
+
+    IVelodromeRouter public constant VELODROME_ROUTER = IVelodromeRouter(0x123...);
+    INonfungiblePositionManager public constant POSITION_MANAGER =
+        INonfungiblePositionManager(0xEF3e32154B5Fb96D56D339e655A5edf5f5661Af8);
+       
+
+
     ILockerFactory public liquidityLockerFactory; 
     address public liquidityLocker;
 

@@ -18,7 +18,7 @@ contract DeployLockerFactory is Script {
 }
 //LockerFactory deployed at: 0x1d2aCE3BccE9E1321a2AB8eaf9e3241dAc71b8fD
 // DaosWorldV1Token deployed at: 0x462B0cB16834E33654265380999A9B6310C709B9
- // DaosWorldV1 deployed at: 0xAa90e743bADc66A05EdA2E37181baf8f9970F351
-  //Daos manager is  0xaA53cb2CCb70684476480AED76e31179729d2a92
-  //Adding to whitelist and contributing...
+// DaosWorldV1 deployed at: 0xAa90e743bADc66A05EdA2E37181baf8f9970F351
+//Daos manager is  0xaA53cb2CCb70684476480AED76e31179729d2a92
+//Adding to whitelist and contributing...
 
