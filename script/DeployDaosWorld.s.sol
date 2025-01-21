@@ -21,7 +21,7 @@ contract DeployDaosWorld is Script {
         // Deploy DaosWorldV1
 
 
-        uint256 fundraisingGoal = 0.00001 ether; // 100 
+        uint256 fundraisingGoal = 0.00002 ether; // 100 
         uint256 maxWhitelistAmount = 0.1 ether; // Max 10 ETH per whitelist
         uint256 maxPublicContributionAmount = 20 ether; // Max 20 ETH for public contribution
        
