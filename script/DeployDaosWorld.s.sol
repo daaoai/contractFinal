@@ -14,7 +14,8 @@ contract DeployDaosWorld is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         // Deploy DaosWorldV1Token
-        DaosWorldV1Token token = new DaosWorldV1Token("DaoTest", "TOD");
+        DaosWorldV1Token token = new DaosWorldV1Token("TdsToken", "TOD");
+     
         console2.log("DaosWorldV1Token deployed at:", address(token));
 
         // Deploy DaosWorldV1
@@ -48,6 +49,7 @@ contract DeployDaosWorld is Script {
             protocolAdmin,
             maxPublicContributionAmount
         );
+        token.transferOwnership(address(daosWorldV1));
         console2.log("DaosWorldV1 deployed at:", address(daosWorldV1));
         console2.log("Daos manager is ",daoManager);
        

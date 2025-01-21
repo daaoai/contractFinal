@@ -166,7 +166,8 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
     }
 
     // Finalize the fundraising and distribute tokens
-    function finalizeFundraising(int24 initialTick, int24 upperTick) external {
+    function finalizeFundraising(int24 initialTick, int24 upperTick, address dao_Token) external {
+    setDaoToken(dao_Token);
     require(goalReached, "Fundraising goal not reached");
     require(!fundraisingFinalized, "DAO tokens already minted");
     require(daoToken != address(0), "Token not set");
@@ -174,7 +175,10 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
     emit DebugLog("Starting finalizeFundraising");
     DaosWorldV1Token token = DaosWorldV1Token(daoToken);
 
+
     daoToken = address(token);
+   
+
 
     // Mint and distribute tokens to all contributors
     for (uint256 i = 0; i < contributors.length; i++) {
@@ -243,18 +247,18 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
     emit DebugLog("Finalize fundraising complete");
     }
 
-    function setDaoToken(address _daoToken) external onlyOwner {
+    function setDaoToken(address _daoToken) internal onlyOwner {
         require(_daoToken != address(0), "Invalid DAO token address");
         require(daoToken == address(0), "DAO token already set");
         daoToken = _daoToken;
     }
-    
+
     // Allow contributors to get a refund if the goal is not reached
     function refund() external nonReentrant {
         require(!goalReached, "Fundraising goal was reached");
         require(block.timestamp > fundraisingDeadline, "Deadline not reached yet");
         require(contributions[msg.sender] > 0, "No contributions to refund");
-
+      
         uint256 contributedAmount = contributions[msg.sender];
         contributions[msg.sender] = 0;
 
