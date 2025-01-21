@@ -1,4 +1,4 @@
-# DAOs World Smart Contracts
+# DAAO Smart Contracts
 
 A decentralized platform for creating and managing DAOs with integrated liquidity management and token vesting capabilities.
 
