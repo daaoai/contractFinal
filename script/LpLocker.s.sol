@@ -7,6 +7,7 @@ import {LpLocker} from "../src/LpLocker.sol";
 
 contract DeployLpLocker is Script {
     function run() public {
+        
         // Load deployer private key
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
@@ -14,12 +15,12 @@ contract DeployLpLocker is Script {
         console2.log("Starting LpLocker deployment...");
 
         // Deployment parameters
-        address v3PositionManager = 0xEF3e32154B5Fb96D56D339e655A5edf5f5661Af8; // Replace with actual address
+        address v3PositionManager = 0x416b433906b1B72FA758e166e239c43d68dC6F29;
         address daoManager = vm.addr(deployerPrivateKey); // DAO manager (deployer)
         uint256 fundExpiry = block.timestamp + 30 days; // Fund expiry 30 days from now
         uint256 protocolFee = 60; // Protocol fee (e.g., 60 means 60%)
-        address protocolAdmin =msg.sender ; // Replace with protocol admin address
-        address daoTreasury = 0x65e3064cd3d75a440367B1d0C433a2de0aFCcB57; // Replace with DAO treasury address
+        address protocolAdmin =msg.sender ; 
+        address daoTreasury = msg.sender; 
 
         // Deploy LpLocker contract
         LpLocker lpLocker = new LpLocker(
@@ -27,7 +28,8 @@ contract DeployLpLocker is Script {
             daoManager,
             fundExpiry,
             protocolFee,
-            protocolAdmin
+            protocolAdmin,
+            daoTreasury
         );
 
         console2.log("LpLocker deployed at:", address(lpLocker));
