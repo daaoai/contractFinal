@@ -21,14 +21,11 @@ contract FinalizeFundraising is Script {
             "DAOS_WORLD_V1_TOKEN_ADDRESS"
         );
 
-        int24 initialTick = 100;
-        int24 upperTick = 200;
+        int24 initialTick = 200; 
+        int24 upperTick = 400;   
 
-        daosWorldV1.finalizeFundraising(
-            initialTick,
-            upperTick,
-            daosWorldV1TokenAddress
-        );
+
+        daosWorldV1.finalizeFundraising(initialTick, upperTick);
         console2.log("Fundraising finalized for contract:", daosWorldV1Address);
 
         vm.stopBroadcast();

@@ -24,6 +24,7 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
     ILockerFactory public liquidityLockerFactory; 
     address public liquidityLocker;
 
+
     uint256 public totalRaised;
     uint256 public fundraisingGoal;
     bool public fundraisingFinalized;
@@ -166,18 +167,14 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
     }
 
     // Finalize the fundraising and distribute tokens
-    function finalizeFundraising(int24 initialTick, int24 upperTick, address dao_Token) external {
-    setDaoToken(dao_Token);
+    function finalizeFundraising(int24 initialTick, int24 upperTick) external {
     require(goalReached, "Fundraising goal not reached");
     require(!fundraisingFinalized, "DAO tokens already minted");
     require(daoToken != address(0), "Token not set");
 
     emit DebugLog("Starting finalizeFundraising");
     DaosWorldV1Token token = DaosWorldV1Token(daoToken);
-
-
     daoToken = address(token);
-   
 
 
     // Mint and distribute tokens to all contributors
@@ -247,7 +244,7 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
     emit DebugLog("Finalize fundraising complete");
     }
 
-    function setDaoToken(address _daoToken) internal onlyOwner {
+    function setDaoToken(address _daoToken) external onlyOwner {
         require(_daoToken != address(0), "Invalid DAO token address");
         require(daoToken == address(0), "DAO token already set");
         daoToken = _daoToken;
