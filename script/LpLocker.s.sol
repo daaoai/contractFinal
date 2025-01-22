@@ -17,7 +17,7 @@ contract DeployLpLocker is Script {
         // Deployment parameters
         address v3PositionManager = 0x416b433906b1B72FA758e166e239c43d68dC6F29;
         address daoManager = vm.addr(deployerPrivateKey); // DAO manager (deployer)
-        uint256 fundExpiry = block.timestamp + 30 days; // Fund expiry 30 days from now
+        uint256 fundExpiry = block.timestamp + 15; // Fund expiry 30 days from now
         uint256 protocolFee = 60; // Protocol fee (e.g., 60 means 60%)
         address protocolAdmin =msg.sender ; 
         address daoTreasury = msg.sender; 

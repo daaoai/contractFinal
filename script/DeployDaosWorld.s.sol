@@ -29,7 +29,7 @@ contract DeployDaosWorld is Script {
 
         uint256 fundraisingDeadline = block.timestamp + 7 days; // 7 days from now
       
- uint256 fundExpiry = fundraisingDeadline + 30 days; // 30 days after deadline
+ uint256 fundExpiry = fundraisingDeadline + 120; // 30 days after deadline
         
         address daoManager = vm.addr(deployerPrivateKey); // Address derived from the deployer private key
         address liquidityLockerFactory = address(0xaEDEDdDC448AEE5237f6b3f11Ec370aB5793A0d3); // Replace with actual address

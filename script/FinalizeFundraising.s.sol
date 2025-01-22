@@ -20,8 +20,8 @@ contract FinalizeFundraising is Script {
         DaosWorldV1Token daosWorldV1Token = DaosWorldV1Token(daosWorldV1TokenAddress);
 
        
-        int24 initialTick = 200; 
-        int24 upperTick = 400;   
+        int24 initialTick = 6900; 
+        int24 upperTick = 7100;   
 
 
         daosWorldV1.finalizeFundraising(initialTick, upperTick);

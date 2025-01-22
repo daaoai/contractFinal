@@ -15,8 +15,10 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
     using TickMath for int24;
 
     uint24 public constant UNI_V3_FEE = 500;
-    int24 public constant Ticker_Velo = 100;
-    uint256 public constant SUPPLY_TO_LP = 0.0003 ether;
+    int24 public constant TICKING_SPACE = 100;
+    uint256 public constant WETH_SUPPLY_TO_LP = 0.00001 ether;
+    uint256 public constant TOKEN_SUPPLY_TO_LP = 0.00002 ether;
+
     IVelodromeFactory public constant Velodrome_factory = IVelodromeFactory(0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F);
     INonfungiblePositionManager public constant POSITION_MANAGER =
         INonfungiblePositionManager(0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702);
@@ -193,16 +195,29 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
 
     uint160 sqrtPriceX96 = initialTick.getSqrtRatioAtTick();
     emit DebugLog("Calculated sqrtPriceX96");
+
+     address token0;
+    address token1;
+
+    if (address(WETH) < address(token)) {
+        token0 = WETH;
+        token1 = address(token);
+    } else {
+        token0 = address(token);
+        token1 = WETH;
+    }
+
+
   
 
     INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams(
-        WETH,
-        address(token),
-        Ticker_Velo,
+        token0,
+        token1,
+        TICKING_SPACE,
         initialTick,
         upperTick,
-        SUPPLY_TO_LP,
-        0,
+        token0 == WETH ? WETH_SUPPLY_TO_LP : TOKEN_SUPPLY_TO_LP,
+        token1 == WETH ? WETH_SUPPLY_TO_LP : TOKEN_SUPPLY_TO_LP,
         0,
         0,
         address(this),
@@ -211,17 +226,17 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
   
     );
     uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
-    IERC20(WETH).approve(address(POSITION_MANAGER), SUPPLY_TO_LP);
+    IERC20(WETH).approve(address(POSITION_MANAGER), WETH_SUPPLY_TO_LP);
 
     // Mint additional tokens for LP
-    token.mint(address(this), SUPPLY_TO_LP);
+    token.mint(address(this), TOKEN_SUPPLY_TO_LP);
     emit DebugLog("Minted additional tokens for LP");
     token.renounceOwnership();
     emit DebugLog("Ownership renounced");
 
     // Approve tokens for POSITION_MANAGER
-    token.approve(address(POSITION_MANAGER), SUPPLY_TO_LP);
-    emit TokenApproved(address(token), SUPPLY_TO_LP);
+    token.approve(address(POSITION_MANAGER), TOKEN_SUPPLY_TO_LP);
+    emit TokenApproved(address(token), TOKEN_SUPPLY_TO_LP);
 
     (uint256 tokenId,,,) = POSITION_MANAGER.mint(params);
     emit LPTokenMinted(tokenId);
