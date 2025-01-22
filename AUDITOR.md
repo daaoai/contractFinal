@@ -9,7 +9,7 @@ DAAO is a protocol enabling efficient DAO creation and management on Mode Networ
 ## Scope
 
 ### In Scope
-* Commit hash: **`[INSERT_COMMIT_HASH]`**
+* Commit hash: **`[b53757a3c2050c1f02216275186bbb62321a5107]`**
 
 ```solidity
 src/
