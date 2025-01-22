@@ -1,66 +1,50 @@
-## Foundry
+# DAAO Smart Contracts
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+A decentralized platform for creating and managing DAOs with integrated liquidity management and token vesting capabilities.
 
-Foundry consists of:
+## Core Components
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+### DaosWorldV1
+The main contract handling DAO creation, fundraising, and liquidity management. Features include:
+- Customizable fundraising parameters
+- Whitelist support
+- Automatic liquidity provision
+- LP token locking mechanism
+- Built-in tax system
 
-## Documentation
+### DaosWorldV1Token
+Standard ERC20 token implementation with:
+- Minting capabilities controlled by owner
+- Full ERC20 compliance
+- Ownable pattern implementation
 
-https://book.getfoundry.sh/
+### LpLocker
+Handles liquidity pool token locking with:
+- Time-based token locking
+- Fee collection mechanism
+- LP token management
+- Security controls for token releases
 
-## Usage
+### LockerFactory
+Factory contract for deploying LP lockers with:
+- Standardized deployment process
+- Protocol admin controls
+- Event logging for deployments
 
-### Build
+## Key Features
 
-```shell
-$ forge build
+- **Fundraising**: Configurable fundraising goals and deadlines
+- **Token Management**: Automated token distribution and vesting
+- **Liquidity Management**: Automated LP creation and locking
+- **Security**: Multiple security measures including reentrancy protection
+- **Fee System**: Configurable tax system for buys and sells
+
+## Setup
+
+```sh
+forge install
+forge build
 ```
 
-### Test
-
-```shell
-$ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+## License
+MIT
