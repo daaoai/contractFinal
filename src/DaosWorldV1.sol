@@ -6,6 +6,9 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {INonfungiblePositionManager, IVelodromeFactory, IUniswapV3Factory, ILockerFactory, ILocker} from "./interface.sol";
+
+import {ICLFactory} from "./interfaces/ICLFactory.sol";
+import {ICLPool} from "./interfaces/ICLPool.sol";
 import {IERC721Receiver} from "./LPLocker/IERC721Receiver.sol";
 import {DaosWorldV1Token} from "./DaosWorldV1Token.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -201,6 +204,101 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
     }
 
     // Finalize the fundraising and distribute tokens
+    // function finalizeFundraising(int24 initialTick, int24 upperTick) external {
+    //     emit DebugLog("Starting finalizeFundraising");
+    //     DaosWorldV1Token token = DaosWorldV1Token(daoToken);
+    //     daoToken = address(token);
+
+    //     // Mint and distribute tokens to all contributors
+    //     for (uint256 i = 0; i < contributors.length; i++) {
+    //         address contributor = contributors[i];
+    //         uint256 contribution = contributions[contributor];
+    //         uint256 tokensToMint = (contribution * SUPPLY_TO_FUNDRAISERS) /
+    //             totalRaised;
+
+    //         emit MintDetails(contributor, tokensToMint);
+
+    //         token.mint(contributor, tokensToMint);
+    //     }
+
+    //     emit FundraisingFinalized(true);
+    //     fundraisingFinalized = true;
+
+    //     uint160 sqrtPriceX96 = initialTick.getSqrtRatioAtTick();
+    //     emit DebugLog("Calculated sqrtPriceX96");
+
+    //     address token0;
+    //     address token1;
+
+    //     if (address(WETH) < address(token)) {
+    //         token0 = WETH;
+    //         token1 = address(token);
+    //     } else {
+    //         token0 = address(token);
+    //         token1 = WETH;
+    //     }
+
+    //     INonfungiblePositionManager.MintParams
+    //         memory params = INonfungiblePositionManager.MintParams(
+    //             token0,
+    //             token1,
+    //             TICKING_SPACE,
+    //             initialTick,
+    //             upperTick,
+    //             token0 == WETH ? WETH_SUPPLY_TO_LP : TOKEN_SUPPLY_TO_LP,
+    //             token1 == WETH ? WETH_SUPPLY_TO_LP : TOKEN_SUPPLY_TO_LP,
+    //             0,
+    //             0,
+    //             address(this),
+    //             block.timestamp,
+    //             sqrtPriceX96
+    //         );
+    //     uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
+    //     IERC20(WETH).approve(address(POSITION_MANAGER), WETH_SUPPLY_TO_LP);
+
+    //     // Mint additional tokens for LP
+    //     // Mint -> this (X)
+    //     // (X) => 0x00000000
+    //     //
+    //     token.mint(address(this), TOKEN_SUPPLY_TO_LP);
+    //     emit DebugLog("Minted additional tokens for LP");
+    //     token.renounceOwnership();
+    //     emit DebugLog("Ownership renounced");
+
+    //     // Approve tokens for POSITION_MANAGER
+    //     token.approve(address(POSITION_MANAGER), TOKEN_SUPPLY_TO_LP);
+    //     emit TokenApproved(address(token), TOKEN_SUPPLY_TO_LP);
+
+    //     (uint256 tokenId, , , ) = POSITION_MANAGER.mint(params);
+    //     emit LPTokenMinted(tokenId);
+
+    //     // Deploy the liquidity locker
+    //     address lockerAddress = liquidityLockerFactory.deploy(
+    //         address(POSITION_MANAGER),
+    //         owner(),
+    //         uint64(fundExpiry),
+    //         tokenId,
+    //         lpFeesCut,
+    //         address(this)
+    //     );
+    //     emit LockerDeployed(lockerAddress);
+
+    //     // Transfer LP token to the locker
+    //     POSITION_MANAGER.safeTransferFrom(
+    //         address(this),
+    //         lockerAddress,
+    //         tokenId
+    //     );
+    //     emit TokenTransferredToLocker(tokenId, lockerAddress);
+
+    //     // Initialize the locker
+    //     ILocker(lockerAddress).initializer(tokenId);
+    //     emit LockerInitialized(tokenId);
+
+    //     liquidityLocker = lockerAddress;
+    //     emit DebugLog("Finalize fundraising complete");
+    // }
+
     function finalizeFundraising(int24 initialTick, int24 upperTick) external {
         require(goalReached, "Fundraising goal not reached");
         require(!fundraisingFinalized, "DAO tokens already minted");
@@ -208,25 +306,19 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
 
         emit DebugLog("Starting finalizeFundraising");
         DaosWorldV1Token token = DaosWorldV1Token(daoToken);
-        daoToken = address(token);
 
-        // Mint and distribute tokens to all contributors
+        // Mint tokens to contributors
         for (uint256 i = 0; i < contributors.length; i++) {
             address contributor = contributors[i];
-            uint256 contribution = contributions[contributor];
-            uint256 tokensToMint = (contribution * SUPPLY_TO_FUNDRAISERS) /
-                totalRaised;
+            uint256 tokensToMint = (contributions[contributor] *
+                SUPPLY_TO_FUNDRAISERS) / totalRaised;
 
             emit MintDetails(contributor, tokensToMint);
-
             token.mint(contributor, tokensToMint);
         }
 
         emit FundraisingFinalized(true);
         fundraisingFinalized = true;
-
-        uint160 sqrtPriceX96 = initialTick.getSqrtRatioAtTick();
-        emit DebugLog("Calculated sqrtPriceX96");
 
         address token0;
         address token1;
@@ -239,62 +331,38 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
             token1 = WETH;
         }
 
-        INonfungiblePositionManager.MintParams
-            memory params = INonfungiblePositionManager.MintParams(
+        // Create pool directly through factory
+        address poolAddress = ICLFactory(
+            0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+        ).createPool(
                 token0,
                 token1,
                 TICKING_SPACE,
-                initialTick,
-                upperTick,
-                token0 == WETH ? WETH_SUPPLY_TO_LP : TOKEN_SUPPLY_TO_LP,
-                token1 == WETH ? WETH_SUPPLY_TO_LP : TOKEN_SUPPLY_TO_LP,
-                0,
-                0,
-                address(this),
-                block.timestamp,
-                sqrtPriceX96
+                TickMath.getSqrtRatioAtTick(initialTick)
             );
-        uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
-        IERC20(WETH).approve(address(POSITION_MANAGER), WETH_SUPPLY_TO_LP);
 
-        // Mint additional tokens for LP
+        // Mint LP tokens
         token.mint(address(this), TOKEN_SUPPLY_TO_LP);
-        emit DebugLog("Minted additional tokens for LP");
         token.renounceOwnership();
-        emit DebugLog("Ownership renounced");
 
-        // Approve tokens for POSITION_MANAGER
-        token.approve(address(POSITION_MANAGER), TOKEN_SUPPLY_TO_LP);
-        emit TokenApproved(address(token), TOKEN_SUPPLY_TO_LP);
-
-        (uint256 tokenId, , , ) = POSITION_MANAGER.mint(params);
-        emit LPTokenMinted(tokenId);
-
-        // Deploy the liquidity locker
-        address lockerAddress = liquidityLockerFactory.deploy(
-            address(POSITION_MANAGER),
-            owner(),
-            uint64(fundExpiry),
-            tokenId,
-            lpFeesCut,
-            address(this)
+        // Approve tokens for pool
+        IERC20(token0).approve(
+            poolAddress,
+            token0 == WETH ? WETH_SUPPLY_TO_LP : TOKEN_SUPPLY_TO_LP
         );
-        emit LockerDeployed(lockerAddress);
+        IERC20(token1).approve(
+            poolAddress,
+            token1 == WETH ? WETH_SUPPLY_TO_LP : TOKEN_SUPPLY_TO_LP
+        );
 
-        // Transfer LP token to the locker
-        POSITION_MANAGER.safeTransferFrom(
+        // Add liquidity directly to pool
+        ICLPool(poolAddress).mint(
             address(this),
-            lockerAddress,
-            tokenId
+            initialTick,
+            upperTick,
+            uint128(token0 == WETH ? WETH_SUPPLY_TO_LP : TOKEN_SUPPLY_TO_LP),
+            ""
         );
-        emit TokenTransferredToLocker(tokenId, lockerAddress);
-
-        // Initialize the locker
-        ILocker(lockerAddress).initializer(tokenId);
-        emit LockerInitialized(tokenId);
-
-        liquidityLocker = lockerAddress;
-        emit DebugLog("Finalize fundraising complete");
     }
 
     function setDaoToken(address _daoToken) external onlyOwner {
