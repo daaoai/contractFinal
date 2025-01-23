@@ -5,11 +5,12 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
-import {INonfungiblePositionManager,IVelodromeFactory, IUniswapV3Factory, ILockerFactory, ILocker} from "./interface.sol";
+import {INonfungiblePositionManager, IVelodromeFactory, IUniswapV3Factory, ILockerFactory, ILocker} from "./interface.sol";
 import {IERC721Receiver} from "./LPLocker/IERC721Receiver.sol";
 import {DaosWorldV1Token} from "./DaosWorldV1Token.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 contract DaosWorldV1 is Ownable, ReentrancyGuard {
     using SafeERC20 for ERC20;
     using TickMath for int24;
@@ -19,13 +20,13 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
     uint256 public constant WETH_SUPPLY_TO_LP = 0.00001 ether;
     uint256 public constant TOKEN_SUPPLY_TO_LP = 0.00002 ether;
 
-    IVelodromeFactory public constant Velodrome_factory = IVelodromeFactory(0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F);
+    IVelodromeFactory public constant Velodrome_factory =
+        IVelodromeFactory(0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F);
     INonfungiblePositionManager public constant POSITION_MANAGER =
         INonfungiblePositionManager(0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702);
-    address public constant WETH = 0x4200000000000000000000000000000000000006; 
-    ILockerFactory public liquidityLockerFactory; 
+    address public constant WETH = 0x4200000000000000000000000000000000000006;
+    ILockerFactory public liquidityLockerFactory;
     address public liquidityLocker;
-
 
     uint256 public totalRaised;
     uint256 public fundraisingGoal;
@@ -60,7 +61,12 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
     event MintDetails(address indexed contributor, uint256 tokensToMint);
     event PoolCreated(address indexed pool);
     event PoolInitialized(uint160 sqrtPriceX96);
-    event MintParamsCreated(uint256 tokenId, address token0, address token1, uint256 liquidity);
+    event MintParamsCreated(
+        uint256 tokenId,
+        address token0,
+        address token1,
+        uint256 liquidity
+    );
     event TokenApproved(address indexed token, uint256 amount);
     event LPTokenMinted(uint256 tokenId);
     event LockerDeployed(address indexed lockerAddress);
@@ -79,9 +85,18 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
         address _protocolAdmin,
         uint256 _maxPublicContributionAmount
     ) Ownable(_daoManager) {
-        require(_fundraisingGoal > 0, "Fundraising goal must be greater than 0");
-        require(_fundraisingDeadline > block.timestamp, "_fundraisingDeadline > block.timestamp");
-        require(_fundExpiry > fundraisingDeadline, "_fundExpiry > fundraisingDeadline");
+        require(
+            _fundraisingGoal > 0,
+            "Fundraising goal must be greater than 0"
+        );
+        require(
+            _fundraisingDeadline > block.timestamp,
+            "_fundraisingDeadline > block.timestamp"
+        );
+        require(
+            _fundExpiry > fundraisingDeadline,
+            "_fundExpiry > fundraisingDeadline"
+        );
         name = _name;
         symbol = _symbol;
         fundraisingGoal = _fundraisingGoal;
@@ -99,10 +114,14 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
         require(msg.value > 0, "Contribution must be greater than 0");
         if (maxWhitelistAmount > 0) {
             require(whitelist[msg.sender], "You are not whitelisted");
-            require(contributions[msg.sender] + msg.value <= maxWhitelistAmount, "Exceeding maxWhitelistAmount");
+            require(
+                contributions[msg.sender] + msg.value <= maxWhitelistAmount,
+                "Exceeding maxWhitelistAmount"
+            );
         } else if (maxPublicContributionAmount > 0) {
             require(
-                contributions[msg.sender] + msg.value <= maxPublicContributionAmount,
+                contributions[msg.sender] + msg.value <=
+                    maxPublicContributionAmount,
                 "Exceeding maxPublicContributionAmount"
             );
         }
@@ -128,7 +147,10 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
     }
 
     function addToWhitelist(address[] calldata addresses) external {
-        require(msg.sender == owner() || msg.sender == protocolAdmin, "Must be owner or protocolAdmin");
+        require(
+            msg.sender == owner() || msg.sender == protocolAdmin,
+            "Must be owner or protocolAdmin"
+        );
         for (uint256 i = 0; i < addresses.length; i++) {
             if (!whitelist[addresses[i]]) {
                 whitelist[addresses[i]] = true;
@@ -142,9 +164,11 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
         return whitelistArray.length;
     }
 
-
     function removeFromWhitelist(address removedAddress) external {
-        require(msg.sender == owner() || msg.sender == protocolAdmin, "Must be owner or protocolAdmin");
+        require(
+            msg.sender == owner() || msg.sender == protocolAdmin,
+            "Must be owner or protocolAdmin"
+        );
         whitelist[removedAddress] = false;
 
         for (uint256 i = 0; i < whitelistArray.length; i++) {
@@ -159,104 +183,118 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
     }
 
     function setMaxWhitelistAmount(uint256 _maxWhitelistAmount) public {
-        require(msg.sender == owner() || msg.sender == protocolAdmin, "Must be owner or protocolAdmin");
+        require(
+            msg.sender == owner() || msg.sender == protocolAdmin,
+            "Must be owner or protocolAdmin"
+        );
         maxWhitelistAmount = _maxWhitelistAmount;
     }
 
-    function setMaxPublicContributionAmount(uint256 _maxPublicContributionAmount) public {
-        require(msg.sender == owner() || msg.sender == protocolAdmin, "Must be owner or protocolAdmin");
+    function setMaxPublicContributionAmount(
+        uint256 _maxPublicContributionAmount
+    ) public {
+        require(
+            msg.sender == owner() || msg.sender == protocolAdmin,
+            "Must be owner or protocolAdmin"
+        );
         maxPublicContributionAmount = _maxPublicContributionAmount;
     }
 
     // Finalize the fundraising and distribute tokens
     function finalizeFundraising(int24 initialTick, int24 upperTick) external {
-    require(goalReached, "Fundraising goal not reached");
-    require(!fundraisingFinalized, "DAO tokens already minted");
-    require(daoToken != address(0), "Token not set");
+        require(goalReached, "Fundraising goal not reached");
+        require(!fundraisingFinalized, "DAO tokens already minted");
+        require(daoToken != address(0), "Token not set");
 
-    emit DebugLog("Starting finalizeFundraising");
-    DaosWorldV1Token token = DaosWorldV1Token(daoToken);
-    daoToken = address(token);
+        emit DebugLog("Starting finalizeFundraising");
+        DaosWorldV1Token token = DaosWorldV1Token(daoToken);
+        daoToken = address(token);
 
+        // Mint and distribute tokens to all contributors
+        for (uint256 i = 0; i < contributors.length; i++) {
+            address contributor = contributors[i];
+            uint256 contribution = contributions[contributor];
+            uint256 tokensToMint = (contribution * SUPPLY_TO_FUNDRAISERS) /
+                totalRaised;
 
-    // Mint and distribute tokens to all contributors
-    for (uint256 i = 0; i < contributors.length; i++) {
-        address contributor = contributors[i];
-        uint256 contribution = contributions[contributor];
-        uint256 tokensToMint = (contribution * SUPPLY_TO_FUNDRAISERS) / totalRaised;
+            emit MintDetails(contributor, tokensToMint);
 
-        emit MintDetails(contributor, tokensToMint);
+            token.mint(contributor, tokensToMint);
+        }
 
-        token.mint(contributor, tokensToMint);
-    }
+        emit FundraisingFinalized(true);
+        fundraisingFinalized = true;
 
-    emit FundraisingFinalized(true);
-    fundraisingFinalized = true;
+        uint160 sqrtPriceX96 = initialTick.getSqrtRatioAtTick();
+        emit DebugLog("Calculated sqrtPriceX96");
 
-    uint160 sqrtPriceX96 = initialTick.getSqrtRatioAtTick();
-    emit DebugLog("Calculated sqrtPriceX96");
+        address token0;
+        address token1;
 
-     address token0;
-    address token1;
+        if (address(WETH) < address(token)) {
+            token0 = WETH;
+            token1 = address(token);
+        } else {
+            token0 = address(token);
+            token1 = WETH;
+        }
 
-    if (address(WETH) < address(token)) {
-        token0 = WETH;
-        token1 = address(token);
-    } else {
-        token0 = address(token);
-        token1 = WETH;
-    }
+        INonfungiblePositionManager.MintParams
+            memory params = INonfungiblePositionManager.MintParams(
+                token0,
+                token1,
+                TICKING_SPACE,
+                initialTick,
+                upperTick,
+                token0 == WETH ? WETH_SUPPLY_TO_LP : TOKEN_SUPPLY_TO_LP,
+                token1 == WETH ? WETH_SUPPLY_TO_LP : TOKEN_SUPPLY_TO_LP,
+                0,
+                0,
+                address(this),
+                block.timestamp,
+                sqrtPriceX96
+            );
+        uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
+        IERC20(WETH).approve(address(POSITION_MANAGER), WETH_SUPPLY_TO_LP);
 
+        // Mint additional tokens for LP
+        token.mint(address(this), TOKEN_SUPPLY_TO_LP);
+        emit DebugLog("Minted additional tokens for LP");
+        token.renounceOwnership();
+        emit DebugLog("Ownership renounced");
 
-  
+        // Approve tokens for POSITION_MANAGER
+        token.approve(address(POSITION_MANAGER), TOKEN_SUPPLY_TO_LP);
+        emit TokenApproved(address(token), TOKEN_SUPPLY_TO_LP);
 
-    INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams(
-        token0,
-        token1,
-        TICKING_SPACE,
-        initialTick,
-        upperTick,
-        token0 == WETH ? WETH_SUPPLY_TO_LP : TOKEN_SUPPLY_TO_LP,
-        token1 == WETH ? WETH_SUPPLY_TO_LP : TOKEN_SUPPLY_TO_LP,
-        0,
-        0,
-        address(this),
-        block.timestamp,
-        sqrtPriceX96
-  
-    );
-    uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
-    IERC20(WETH).approve(address(POSITION_MANAGER), WETH_SUPPLY_TO_LP);
+        (uint256 tokenId, , , ) = POSITION_MANAGER.mint(params);
+        emit LPTokenMinted(tokenId);
 
-    // Mint additional tokens for LP
-    token.mint(address(this), TOKEN_SUPPLY_TO_LP);
-    emit DebugLog("Minted additional tokens for LP");
-    token.renounceOwnership();
-    emit DebugLog("Ownership renounced");
+        // Deploy the liquidity locker
+        address lockerAddress = liquidityLockerFactory.deploy(
+            address(POSITION_MANAGER),
+            owner(),
+            uint64(fundExpiry),
+            tokenId,
+            lpFeesCut,
+            address(this)
+        );
+        emit LockerDeployed(lockerAddress);
 
-    // Approve tokens for POSITION_MANAGER
-    token.approve(address(POSITION_MANAGER), TOKEN_SUPPLY_TO_LP);
-    emit TokenApproved(address(token), TOKEN_SUPPLY_TO_LP);
+        // Transfer LP token to the locker
+        POSITION_MANAGER.safeTransferFrom(
+            address(this),
+            lockerAddress,
+            tokenId
+        );
+        emit TokenTransferredToLocker(tokenId, lockerAddress);
 
-    (uint256 tokenId,,,) = POSITION_MANAGER.mint(params);
-    emit LPTokenMinted(tokenId);
+        // Initialize the locker
+        ILocker(lockerAddress).initializer(tokenId);
+        emit LockerInitialized(tokenId);
 
-    // Deploy the liquidity locker
-    address lockerAddress = liquidityLockerFactory.deploy(
-        address(POSITION_MANAGER), owner(), uint64(fundExpiry), tokenId, lpFeesCut, address(this)
-    );
-    emit LockerDeployed(lockerAddress);
-
-    // Transfer LP token to the locker
-    POSITION_MANAGER.safeTransferFrom(address(this), lockerAddress, tokenId);
-    emit TokenTransferredToLocker(tokenId, lockerAddress);
-
-    // Initialize the locker
-    ILocker(lockerAddress).initializer(tokenId);
-    emit LockerInitialized(tokenId);
-
-    liquidityLocker = lockerAddress;
-    emit DebugLog("Finalize fundraising complete");
+        liquidityLocker = lockerAddress;
+        emit DebugLog("Finalize fundraising complete");
     }
 
     function setDaoToken(address _daoToken) external onlyOwner {
@@ -268,9 +306,12 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
     // Allow contributors to get a refund if the goal is not reached
     function refund() external nonReentrant {
         require(!goalReached, "Fundraising goal was reached");
-        require(block.timestamp > fundraisingDeadline, "Deadline not reached yet");
+        require(
+            block.timestamp > fundraisingDeadline,
+            "Deadline not reached yet"
+        );
         require(contributions[msg.sender] > 0, "No contributions to refund");
-      
+
         uint256 contributedAmount = contributions[msg.sender];
         contributions[msg.sender] = 0;
 
@@ -280,15 +321,19 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
     }
 
     // This function is for the DAO manager to trade
-    function execute(address[] calldata contracts, bytes[] calldata data, uint256[] calldata msgValues)
-        external
-        onlyOwner
-    {
+    function execute(
+        address[] calldata contracts,
+        bytes[] calldata data,
+        uint256[] calldata msgValues
+    ) external onlyOwner {
         require(fundraisingFinalized);
-        require(contracts.length == data.length && data.length == msgValues.length, "Array lengths mismatch");
+        require(
+            contracts.length == data.length && data.length == msgValues.length,
+            "Array lengths mismatch"
+        );
 
         for (uint256 i = 0; i < contracts.length; i++) {
-            (bool success,) = contracts[i].call{value: msgValues[i]}(data[i]);
+            (bool success, ) = contracts[i].call{value: msgValues[i]}(data[i]);
             require(success, "Call failed");
         }
     }
@@ -299,17 +344,25 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
         ILocker(liquidityLocker).extendFundExpiry(newFundExpiry);
     }
 
-    function extendFundraisingDeadline(uint256 newFundraisingDeadline) external {
-        require(msg.sender == owner() || msg.sender == protocolAdmin, "Must be owner or protocolAdmin");
+    function extendFundraisingDeadline(
+        uint256 newFundraisingDeadline
+    ) external {
+        require(
+            msg.sender == owner() || msg.sender == protocolAdmin,
+            "Must be owner or protocolAdmin"
+        );
         require(!goalReached, "Fundraising goal was reached");
-        require(newFundraisingDeadline > fundraisingDeadline, "new fundraising deadline must be > old one");
+        require(
+            newFundraisingDeadline > fundraisingDeadline,
+            "new fundraising deadline must be > old one"
+        );
         fundraisingDeadline = newFundraisingDeadline;
     }
 
     function emergencyEscape() external {
         require(msg.sender == protocolAdmin, "must be protocol admin");
         require(!fundraisingFinalized, "fundraising already finalized");
-        (bool success,) = protocolAdmin.call{value: address(this).balance}("");
+        (bool success, ) = protocolAdmin.call{value: address(this).balance}("");
         require(success, "Transfer failed");
     }
 
@@ -320,7 +373,12 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
         }
     }
 
-    function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes calldata
+    ) external pure returns (bytes4) {
         return IERC721Receiver.onERC721Received.selector;
     }
 }
