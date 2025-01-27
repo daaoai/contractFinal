@@ -18,7 +18,7 @@ contract CLPoolRouter is ICLSwapCallback {
         uint160 sqrtPriceLimitX96,
         int256 amount0Delta,
         int256 amount1Delta,
-         uint256 outputAmount 
+        uint256 outputAmount 
     );
 
     event ApprovalHandled(
@@ -34,7 +34,6 @@ contract CLPoolRouter is ICLSwapCallback {
         return IERC20Minimal(token).allowance(owner, address(this));
     }
 
-
     function _handleApproval(address token, uint256 amount) internal {
         IERC20Minimal tokenContract = IERC20Minimal(token);
         uint256 currentAllowance = tokenContract.allowance(
@@ -46,7 +45,7 @@ contract CLPoolRouter is ICLSwapCallback {
             if (currentAllowance > 0) {
                 tokenContract.approve(address(this), 0);
             }
-          
+   
             require(
                 tokenContract.approve(address(this), amount),
                 "Approval failed"
@@ -79,7 +78,7 @@ contract CLPoolRouter is ICLSwapCallback {
         uint256 amount = uint256(
             amountSpecified > 0 ? amountSpecified : -amountSpecified
         );
-
+        
         _handleApproval(tokenIn, amount);
 
          IERC20Minimal(tokenIn).transferFrom(msg.sender, pool, amount);
@@ -93,7 +92,7 @@ contract CLPoolRouter is ICLSwapCallback {
         );
 
         (nextSqrtRatio, , , , , ) = ICLPool(pool).slot0();
-          uint256 outputAmount;
+        uint256 outputAmount;
     if (zeroForOne) {
         require(amount1Delta < 0, "Invalid amount1Delta");
         outputAmount = uint256(-amount1Delta);

@@ -5,11 +5,13 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
+
 import {SqrtPriceMath} from "@uniswap/v3-core/contracts/libraries/SqrtPriceMath.sol";
 import {INonfungiblePositionManager, IVelodromeFactory, IUniswapV3Factory, ILockerFactory, ILocker} from "./interface.sol";
 
 import {ICLFactory} from "./interfaces/ICLFactory.sol";
 import {ICLPool} from "./interfaces/ICLPool.sol";
+
 import {IERC721Receiver} from "./LPLocker/IERC721Receiver.sol";
 import {DaosWorldV1Token} from "./DaosWorldV1Token.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -213,6 +215,7 @@ address public token1;
         require(goalReached, "Fundraising goal not reached");
         require(!fundraisingFinalized, "DAO tokens already minted");
         require(daoToken != address(0), "Token not set");
+
         require(secondToken != address(0), "secondToken not set");
         emit DebugLog("Starting finalizeFundraising");
         DaosWorldV1Token token = DaosWorldV1Token(daoToken);
@@ -332,104 +335,6 @@ address public token1;
         liquidityLocker = lockerAddress;
         emit DebugLog("Finalize fundraising complete");
     }
-
-    // function finalizeFundraising(int24 initialTick, int24 upperTick) external {
-    //     require(goalReached, "Fundraising goal not reached");
-    //     require(!fundraisingFinalized, "DAO tokens already minted");
-    //     require(daoToken != address(0), "Token not set");
-    //     require(secondToken != address(0), "secondToken not set");
-
-
-    //     emit DebugLog("Starting finalizeFundraising");
-    //     DaosWorldV1Token token = DaosWorldV1Token(daoToken);
-
-    //     // Mint tokens to contributors
-    //     for (uint256 i = 0; i < contributors.length; i++) {
-    //         address contributor = contributors[i];
-    //         uint256 tokensToMint = (contributions[contributor] *
-    //             SUPPLY_TO_FUNDRAISERS) / totalRaised;
-
-    //         emit MintDetails(contributor, tokensToMint);
-    //         token.mint(contributor, tokensToMint);
-    //     }
-
-    //     emit FundraisingFinalized(true);
-    //     fundraisingFinalized = true;
-
-    //     //Determine Order
-
-    //     if (daoToken < secondToken) {
-    //         token0 = daoToken;
-    //         token1 = secondToken;
-    //     } else {
-    //         token0 = secondToken;
-    //         token1 = daoToken;
-    //     }
-
-    //     int24 iprice = 7000;  
-    //     // Create pool directly through factory
-    //     address poolAddress = ICLFactory(0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F)
-    //         .createPool(
-    //             token0,
-    //             token1,
-    //             TICKING_SPACE,
-    //             TickMath.getSqrtRatioAtTick(iprice)
-    //         );
-    //     emit PoolCreated(poolAddress);
-
-    //     uint256 amountToken0ForLP = 10_000 ether; // "bigger" example
-    //     uint256 amountToken1ForLP = 10_000 ether; // "bigger" example
-
-    //     if (token0 == address(token)) {
-    //         // If token0 is the DAO token we control
-    //         token.mint(address(this), amountToken0ForLP);
-    //     } else {
-    //         // If you have a custom ERC20 secondToken, you'd handle it similarly
-    //         // Example:
-    //         DaosWorldV1Token(secondToken).mint(address(this), amountToken0ForLP);
-    //     }
-
-    //     if (token1 == address(token)) {
-    //         // If token1 is the DAO token
-    //         token.mint(address(this), amountToken1ForLP);
-    //     } else {
-    //         // If secondToken is token1
-    //         DaosWorldV1Token(secondToken).mint(address(this), amountToken1ForLP);
-    //     }
-
-    //      token.renounceOwnership();
-    //       IERC20(token0).approve(poolAddress, amountToken0ForLP);
-    //     IERC20(token1).approve(poolAddress, amountToken1ForLP);
-    //     int24 iprice = 7000; 
-    //     TickMath.getSqrtRatioAtTick(iprice) // or the current pool price
-
-    //     uint128 liquidity = calculateLiquidity(
-    //         amountToken0ForLP,
-    //         amountToken1ForLP,
-    //         initialTick,
-    //         upperTick,
-    //         TickMath.getSqrtRatioAtTick(initialTick) // or the current pool price
-    //     );
-
-    //     // Add liquidity directly to pool
-    //     ICLPool(poolAddress).mint(
-    //         address(this),
-    //         initialTick,
-    //         upperTick,
-    //        liquidity,
-    //         ""
-    //     );
-    //      emit DebugLog("Liquidity minted to new pool");
-    // }
-
-    // function uniswapV3MintCallback(uint256 amount0Owed, uint256 amount1Owed, bytes calldata data) external {
-    //     if (amount0Owed > 0) {
-    //         IERC20(token0).transfer(msg.sender, amount0Owed);
-    //     }
-    //     if (amount1Owed > 0) {
-    //         IERC20(token1).transfer(msg.sender, amount1Owed);
-    //     }
-    // }
 
     function setDaoToken(address _daoToken) external onlyOwner {
         require(_daoToken != address(0), "Invalid DAO token address");

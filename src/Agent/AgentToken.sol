@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import "@openzeppelin/upgradeable/contracts/utils/ContextUpgradeable.sol";
+import "@openzeppelin/upgradeable/contracts/proxy/utils/Initializable.sol";
+import "@openzeppelin/upgradeable/contracts/access/Ownable2StepUpgradeable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../pool/IUniswapV2Router02.sol";
@@ -62,7 +62,6 @@ contract AgentToken is
     /** @dev {_liquidityPools} Enumerable set for liquidity pool addresses */
     EnumerableSet.AddressSet private _liquidityPools;
 
-
     IAgentFactory private _factory; // Single source of truth
 
     /**
@@ -80,57 +79,66 @@ contract AgentToken is
     constructor() {
         _disableInitializers();
     }
-bool private _isInitialized;
-function initialize(
-    address[3] memory integrationAddresses_,
-    bytes memory baseParams_,
-    bytes memory supplyParams_,
-    bytes memory taxParams_
-) external {
-    require(!_isInitialized, "Contract is already initialized");
-    require(integrationAddresses_[0] != address(0), "Invalid projectOwner address");
-require(integrationAddresses_[1] != address(0), "Invalid Uniswap router address");
-require(integrationAddresses_[2] != address(0), "Invalid pairToken address");
 
+    bool private _isInitialized;
 
-    _decodeBaseParams(integrationAddresses_[0], baseParams_);
-    _uniswapRouter = IUniswapV2Router02(integrationAddresses_[1]);
-    pairToken = integrationAddresses_[2];
+    function initialize(
+        address[3] memory integrationAddresses_,
+        bytes memory baseParams_,
+        bytes memory supplyParams_,
+        bytes memory taxParams_
+    ) external {
+        require(!_isInitialized, "Contract is already initialized");
+        require(
+            integrationAddresses_[0] != address(0),
+            "Invalid projectOwner address"
+        );
+        require(
+            integrationAddresses_[1] != address(0),
+            "Invalid Uniswap router address"
+        );
+        require(
+            integrationAddresses_[2] != address(0),
+            "Invalid pairToken address"
+        );
 
-    ERC20SupplyParameters memory supplyParams = abi.decode(
-        supplyParams_,
-        (ERC20SupplyParameters)
-    );
+        _decodeBaseParams(integrationAddresses_[0], baseParams_);
+        _uniswapRouter = IUniswapV2Router02(integrationAddresses_[1]);
+        pairToken = integrationAddresses_[2];
 
-    ERC20TaxParameters memory taxParams = abi.decode(
-        taxParams_,
-        (ERC20TaxParameters)
-    );
+        ERC20SupplyParameters memory supplyParams = abi.decode(
+            supplyParams_,
+            (ERC20SupplyParameters)
+        );
 
-    _processSupplyParams(supplyParams);
+        ERC20TaxParameters memory taxParams = abi.decode(
+            taxParams_,
+            (ERC20TaxParameters)
+        );
 
-    uint256 lpSupply = supplyParams.lpSupply * (10 ** decimals());
-    uint256 vaultSupply = supplyParams.vaultSupply * (10 ** decimals());
+        _processSupplyParams(supplyParams);
 
-    botProtectionDurationInSeconds = supplyParams
-        .botProtectionDurationInSeconds;
+        uint256 lpSupply = supplyParams.lpSupply * (10 ** decimals());
+        uint256 vaultSupply = supplyParams.vaultSupply * (10 ** decimals());
 
-    _tokenHasTax = _processTaxParams(taxParams);
-    swapThresholdBasisPoints = uint16(
-        taxParams.taxSwapThresholdBasisPoints
-    );
-    projectTaxRecipient = taxParams.projectTaxRecipient;
+        botProtectionDurationInSeconds = supplyParams
+            .botProtectionDurationInSeconds;
 
-    _mintBalances(lpSupply, vaultSupply);
+        _tokenHasTax = _processTaxParams(taxParams);
+        swapThresholdBasisPoints = uint16(
+            taxParams.taxSwapThresholdBasisPoints
+        );
+        projectTaxRecipient = taxParams.projectTaxRecipient;
 
-    uniswapV2Pair = _createPair();
+        _mintBalances(lpSupply, vaultSupply);
 
-    _factory = IAgentFactory(_msgSender());
-    _autoSwapInProgress = true; // We don't want to tax initial liquidity
+        uniswapV2Pair = _createPair();
 
-    _isInitialized = true;
-}
+        _factory = IAgentFactory(_msgSender());
+        _autoSwapInProgress = true; // We don't want to tax initial liquidity
 
+        _isInitialized = true;
+    }
 
     /**
      * @dev function {_decodeBaseParams}

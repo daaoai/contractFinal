@@ -24,31 +24,43 @@ interface INonfungiblePositionManager {
         uint128 amount1Max;
     }
 
-    function mint(MintParams calldata params)
+    function mint(
+        MintParams calldata params
+    )
         external
         payable
-        returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1);
+        returns (
+            uint256 tokenId,
+            uint128 liquidity,
+            uint256 amount0,
+            uint256 amount1
+        );
 
-    function createAndInitializePoolIfNecessary(address token0, address token1, uint24 fee, uint160 sqrtPriceX96)
-        external
-        payable
-        returns (address pool);
+    function createAndInitializePoolIfNecessary(
+        address token0,
+        address token1,
+        uint24 fee,
+        uint160 sqrtPriceX96
+    ) external payable returns (address pool);
 
-    function collect(CollectParams calldata params) external payable returns (uint256 amount0, uint256 amount1);
+    function collect(
+        CollectParams calldata params
+    ) external payable returns (uint256 amount0, uint256 amount1);
 
-    function safeTransferFrom(address from, address to, uint256 tokenId) external;
-}
-
-interface IUniswapV3Factory {
-    function initialize(uint160 sqrtPriceX96) external;
-
-    function createPool(address tokenA, address tokenB, uint24 fee) external returns (address pool);
-
-    function feeAmountTickSpacing(uint24 fee) external view returns (int24);
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 tokenId
+    ) external;
 }
 
 interface IVelodromeFactory {
-    function createPool(address tokenA, address tokenB, int24 tickSpacing, uint160 sqrtPriceX96) external returns (address pool);
+    function createPool(
+        address tokenA,
+        address tokenB,
+        int24 tickSpacing,
+        uint160 sqrtPriceX96
+    ) external returns (address pool);
 }
 
 interface ILockerFactory {
@@ -64,6 +76,7 @@ interface ILockerFactory {
 
 interface ILocker {
     function initializer(uint256 tokenId) external;
+
     function extendFundExpiry(uint256 fundExpiry) external;
 }
 
@@ -78,5 +91,7 @@ struct ExactInputSingleParams {
 }
 
 interface ISwapRouter {
-    function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
+    function exactInputSingle(
+        ExactInputSingleParams calldata params
+    ) external payable returns (uint256 amountOut);
 }
