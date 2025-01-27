@@ -26,6 +26,8 @@ contract Daao is Ownable, ReentrancyGuard {
 
     uint24 public constant UNI_V3_FEE = 500;
     int24 public constant TICKING_SPACE = 100;
+    uint256 public constant LP_PERCENTAGE = 10;
+    uint256 public constant TREASURY_PERCENTAGE = 90;
     uint256 public GOLD_DEFAULT_LIMIT = 0.5 ether;
     uint256 public SILVER_DEFAULT_LIMIT = 0.1 ether;
     uint256 public PLATINUM_DEFAULT_LIMIT = 1 ether;
@@ -297,8 +299,18 @@ contract Daao is Ownable, ReentrancyGuard {
             token.mint(contributor, tokensToMint);
         }
 
+        // ADD THE NEW CODE RIGHT HERE, AFTER TOKEN DISTRIBUTION BUT BEFORE POOL CREATION
+        uint256 totalCollected = address(this).balance;
+        uint256 amountForLP = (totalCollected * LP_PERCENTAGE) / 100;
+        uint256 amountForTreasury = totalCollected - amountForLP;
+
+        // Transfer treasury amount to owner
+        (bool success, ) = owner().call{value: amountForTreasury}("");
+        require(success, "Treasury transfer failed");
+
         emit FundraisingFinalized(true);
         fundraisingFinalized = true;
+
         int24 iprice = 7000;
         uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(iprice);
         emit DebugLog("Calculated sqrtPriceX96");
