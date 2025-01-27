@@ -19,3 +19,4 @@ interface ICLSwapCallback {
         int256 amount1Delta,
         bytes calldata data
     ) external;
+}

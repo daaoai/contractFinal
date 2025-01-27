@@ -60,3 +60,4 @@ interface IERC20Minimal {
         address indexed spender,
         uint256 value
     );
+}
