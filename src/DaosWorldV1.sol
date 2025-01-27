@@ -5,6 +5,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
+import {SqrtPriceMath} from "@uniswap/v3-core/contracts/libraries/SqrtPriceMath.sol";
 import {INonfungiblePositionManager, IVelodromeFactory, IUniswapV3Factory, ILockerFactory, ILocker} from "./interface.sol";
 
 import {ICLFactory} from "./interfaces/ICLFactory.sol";
@@ -44,6 +45,8 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
     string public symbol;
     address public daoToken;
 
+    address public secondToken;
+
     // If maxWhitelistAmount > 0, then its whitelist only. And this is the max amount you can contribute.
     uint256 public maxWhitelistAmount;
     // If maxPublicContributionAmount > 0, then you cannot contribute more than this in public rounds.
@@ -75,6 +78,8 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
     event LockerDeployed(address indexed lockerAddress);
     event TokenTransferredToLocker(uint256 tokenId, address lockerAddress);
     event LockerInitialized(uint256 tokenId);
+address public token0;
+address public token1;
 
     constructor(
         uint256 _fundraisingGoal,
@@ -203,173 +208,251 @@ contract DaosWorldV1 is Ownable, ReentrancyGuard {
         maxPublicContributionAmount = _maxPublicContributionAmount;
     }
 
-    // Finalize the fundraising and distribute tokens
+    //Finalize the fundraising and distribute tokens
+    function finalizeFundraising(int24 initialTick, int24 upperTick) external {
+        require(goalReached, "Fundraising goal not reached");
+        require(!fundraisingFinalized, "DAO tokens already minted");
+        require(daoToken != address(0), "Token not set");
+        require(secondToken != address(0), "secondToken not set");
+        emit DebugLog("Starting finalizeFundraising");
+        DaosWorldV1Token token = DaosWorldV1Token(daoToken);
+        daoToken = address(token);
+
+        // Mint and distribute tokens to all contributors
+        for (uint256 i = 0; i < contributors.length; i++) {
+            address contributor = contributors[i];
+            uint256 contribution = contributions[contributor];
+            uint256 tokensToMint = (contribution * SUPPLY_TO_FUNDRAISERS) /
+                totalRaised;
+
+            emit MintDetails(contributor, tokensToMint);
+
+            token.mint(contributor, tokensToMint);
+        }
+
+        emit FundraisingFinalized(true);
+        fundraisingFinalized = true;
+        int24 iprice = 7000; 
+        uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(iprice);
+        emit DebugLog("Calculated sqrtPriceX96");
+
+        address token0;
+        address token1;
+
+        if (daoToken < secondToken) {
+            token0 = daoToken;
+            token1 = secondToken;
+        } else {
+            token0 = secondToken;
+            token1 = daoToken;
+        }
+        uint256 amountToken0ForLP = 10_000 ether; // "bigger" example
+        uint256 amountToken1ForLP = 10_000 ether; // "bigger" example
+
+     
+
+        INonfungiblePositionManager.MintParams
+            memory params = INonfungiblePositionManager.MintParams(
+                token0,
+                token1,
+                TICKING_SPACE,
+                initialTick,
+                upperTick,
+                amountToken0ForLP,
+                amountToken1ForLP,
+                0,
+                0,
+                address(this),
+                block.timestamp,
+                sqrtPriceX96
+            );
+        // uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
+        // IERC20(WETH).approve(address(POSITION_MANAGER), WETH_SUPPLY_TO_LP);
+
+      
+         if (token0 == address(token)) {
+            // If token0 is the DAO token we control
+            token.mint(address(this), amountToken0ForLP);
+        } else {
+            // If you have a custom ERC20 secondToken, you'd handle it similarly
+            // Example:
+            DaosWorldV1Token(secondToken).mint(address(this), amountToken0ForLP);
+        }
+
+        if (token1 == address(token)) {
+            // If token1 is the DAO token
+            token.mint(address(this), amountToken1ForLP);
+        } else {
+            // If secondToken is token1
+            DaosWorldV1Token(secondToken).mint(address(this), amountToken1ForLP);
+        }
+
+        token.renounceOwnership();
+        IERC20(token0).approve(address(POSITION_MANAGER), amountToken0ForLP);
+        IERC20(token1).approve(address(POSITION_MANAGER), amountToken1ForLP);
+        // Mint additional tokens for LP
+        // Mint -> this (X)
+        // (X) => 0x00000000
+        //
+        // token.mint(address(this), TOKEN_SUPPLY_TO_LP);
+        emit DebugLog("Minted additional tokens for LP");
+        // token.renounceOwnership();
+        emit DebugLog("Ownership renounced");
+
+        // Approve tokens for POSITION_MANAGER
+        // token.approve(address(POSITION_MANAGER), TOKEN_SUPPLY_TO_LP);
+        // emit TokenApproved(address(token), TOKEN_SUPPLY_TO_LP);
+
+        (uint256 tokenId, , , ) = POSITION_MANAGER.mint(params);
+        emit LPTokenMinted(tokenId);
+
+        // Deploy the liquidity locker
+        address lockerAddress = liquidityLockerFactory.deploy(
+            address(POSITION_MANAGER),
+            owner(),
+            uint64(fundExpiry),
+            tokenId,
+            lpFeesCut,
+            address(this)
+        );
+        emit LockerDeployed(lockerAddress);
+
+        // Transfer LP token to the locker
+        POSITION_MANAGER.safeTransferFrom(
+            address(this),
+            lockerAddress,
+            tokenId
+        );
+        emit TokenTransferredToLocker(tokenId, lockerAddress);
+
+        // Initialize the locker
+        ILocker(lockerAddress).initializer(tokenId);
+        emit LockerInitialized(tokenId);
+
+        liquidityLocker = lockerAddress;
+        emit DebugLog("Finalize fundraising complete");
+    }
+
     // function finalizeFundraising(int24 initialTick, int24 upperTick) external {
+    //     require(goalReached, "Fundraising goal not reached");
+    //     require(!fundraisingFinalized, "DAO tokens already minted");
+    //     require(daoToken != address(0), "Token not set");
+    //     require(secondToken != address(0), "secondToken not set");
+
+
     //     emit DebugLog("Starting finalizeFundraising");
     //     DaosWorldV1Token token = DaosWorldV1Token(daoToken);
-    //     daoToken = address(token);
 
-    //     // Mint and distribute tokens to all contributors
+    //     // Mint tokens to contributors
     //     for (uint256 i = 0; i < contributors.length; i++) {
     //         address contributor = contributors[i];
-    //         uint256 contribution = contributions[contributor];
-    //         uint256 tokensToMint = (contribution * SUPPLY_TO_FUNDRAISERS) /
-    //             totalRaised;
+    //         uint256 tokensToMint = (contributions[contributor] *
+    //             SUPPLY_TO_FUNDRAISERS) / totalRaised;
 
     //         emit MintDetails(contributor, tokensToMint);
-
     //         token.mint(contributor, tokensToMint);
     //     }
 
     //     emit FundraisingFinalized(true);
     //     fundraisingFinalized = true;
 
-    //     uint160 sqrtPriceX96 = initialTick.getSqrtRatioAtTick();
-    //     emit DebugLog("Calculated sqrtPriceX96");
+    //     //Determine Order
 
-    //     address token0;
-    //     address token1;
-
-    //     if (address(WETH) < address(token)) {
-    //         token0 = WETH;
-    //         token1 = address(token);
+    //     if (daoToken < secondToken) {
+    //         token0 = daoToken;
+    //         token1 = secondToken;
     //     } else {
-    //         token0 = address(token);
-    //         token1 = WETH;
+    //         token0 = secondToken;
+    //         token1 = daoToken;
     //     }
 
-    //     INonfungiblePositionManager.MintParams
-    //         memory params = INonfungiblePositionManager.MintParams(
+    //     int24 iprice = 7000;  
+    //     // Create pool directly through factory
+    //     address poolAddress = ICLFactory(0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F)
+    //         .createPool(
     //             token0,
     //             token1,
     //             TICKING_SPACE,
-    //             initialTick,
-    //             upperTick,
-    //             token0 == WETH ? WETH_SUPPLY_TO_LP : TOKEN_SUPPLY_TO_LP,
-    //             token1 == WETH ? WETH_SUPPLY_TO_LP : TOKEN_SUPPLY_TO_LP,
-    //             0,
-    //             0,
-    //             address(this),
-    //             block.timestamp,
-    //             sqrtPriceX96
+    //             TickMath.getSqrtRatioAtTick(iprice)
     //         );
-    //     uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
-    //     IERC20(WETH).approve(address(POSITION_MANAGER), WETH_SUPPLY_TO_LP);
+    //     emit PoolCreated(poolAddress);
 
-    //     // Mint additional tokens for LP
-    //     // Mint -> this (X)
-    //     // (X) => 0x00000000
-    //     //
-    //     token.mint(address(this), TOKEN_SUPPLY_TO_LP);
-    //     emit DebugLog("Minted additional tokens for LP");
-    //     token.renounceOwnership();
-    //     emit DebugLog("Ownership renounced");
+    //     uint256 amountToken0ForLP = 10_000 ether; // "bigger" example
+    //     uint256 amountToken1ForLP = 10_000 ether; // "bigger" example
 
-    //     // Approve tokens for POSITION_MANAGER
-    //     token.approve(address(POSITION_MANAGER), TOKEN_SUPPLY_TO_LP);
-    //     emit TokenApproved(address(token), TOKEN_SUPPLY_TO_LP);
+    //     if (token0 == address(token)) {
+    //         // If token0 is the DAO token we control
+    //         token.mint(address(this), amountToken0ForLP);
+    //     } else {
+    //         // If you have a custom ERC20 secondToken, you'd handle it similarly
+    //         // Example:
+    //         DaosWorldV1Token(secondToken).mint(address(this), amountToken0ForLP);
+    //     }
 
-    //     (uint256 tokenId, , , ) = POSITION_MANAGER.mint(params);
-    //     emit LPTokenMinted(tokenId);
+    //     if (token1 == address(token)) {
+    //         // If token1 is the DAO token
+    //         token.mint(address(this), amountToken1ForLP);
+    //     } else {
+    //         // If secondToken is token1
+    //         DaosWorldV1Token(secondToken).mint(address(this), amountToken1ForLP);
+    //     }
 
-    //     // Deploy the liquidity locker
-    //     address lockerAddress = liquidityLockerFactory.deploy(
-    //         address(POSITION_MANAGER),
-    //         owner(),
-    //         uint64(fundExpiry),
-    //         tokenId,
-    //         lpFeesCut,
-    //         address(this)
+    //      token.renounceOwnership();
+    //       IERC20(token0).approve(poolAddress, amountToken0ForLP);
+    //     IERC20(token1).approve(poolAddress, amountToken1ForLP);
+    //     int24 iprice = 7000; 
+    //     TickMath.getSqrtRatioAtTick(iprice) // or the current pool price
+
+    //     uint128 liquidity = calculateLiquidity(
+    //         amountToken0ForLP,
+    //         amountToken1ForLP,
+    //         initialTick,
+    //         upperTick,
+    //         TickMath.getSqrtRatioAtTick(initialTick) // or the current pool price
     //     );
-    //     emit LockerDeployed(lockerAddress);
 
-    //     // Transfer LP token to the locker
-    //     POSITION_MANAGER.safeTransferFrom(
+    //     // Add liquidity directly to pool
+    //     ICLPool(poolAddress).mint(
     //         address(this),
-    //         lockerAddress,
-    //         tokenId
+    //         initialTick,
+    //         upperTick,
+    //        liquidity,
+    //         ""
     //     );
-    //     emit TokenTransferredToLocker(tokenId, lockerAddress);
-
-    //     // Initialize the locker
-    //     ILocker(lockerAddress).initializer(tokenId);
-    //     emit LockerInitialized(tokenId);
-
-    //     liquidityLocker = lockerAddress;
-    //     emit DebugLog("Finalize fundraising complete");
+    //      emit DebugLog("Liquidity minted to new pool");
     // }
 
-    function finalizeFundraising(int24 initialTick, int24 upperTick) external {
-        require(goalReached, "Fundraising goal not reached");
-        require(!fundraisingFinalized, "DAO tokens already minted");
-        require(daoToken != address(0), "Token not set");
-
-        emit DebugLog("Starting finalizeFundraising");
-        DaosWorldV1Token token = DaosWorldV1Token(daoToken);
-
-        // Mint tokens to contributors
-        for (uint256 i = 0; i < contributors.length; i++) {
-            address contributor = contributors[i];
-            uint256 tokensToMint = (contributions[contributor] *
-                SUPPLY_TO_FUNDRAISERS) / totalRaised;
-
-            emit MintDetails(contributor, tokensToMint);
-            token.mint(contributor, tokensToMint);
-        }
-
-        emit FundraisingFinalized(true);
-        fundraisingFinalized = true;
-
-        address token0;
-        address token1;
-
-        if (address(WETH) < address(token)) {
-            token0 = WETH;
-            token1 = address(token);
-        } else {
-            token0 = address(token);
-            token1 = WETH;
-        }
-
-        // Create pool directly through factory
-        address poolAddress = ICLFactory(
-            0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
-        ).createPool(
-                token0,
-                token1,
-                TICKING_SPACE,
-                TickMath.getSqrtRatioAtTick(initialTick)
-            );
-
-        // Mint LP tokens
-        token.mint(address(this), TOKEN_SUPPLY_TO_LP);
-        token.renounceOwnership();
-
-        // Approve tokens for pool
-        IERC20(token0).approve(
-            poolAddress,
-            token0 == WETH ? WETH_SUPPLY_TO_LP : TOKEN_SUPPLY_TO_LP
-        );
-        IERC20(token1).approve(
-            poolAddress,
-            token1 == WETH ? WETH_SUPPLY_TO_LP : TOKEN_SUPPLY_TO_LP
-        );
-
-        // Add liquidity directly to pool
-        ICLPool(poolAddress).mint(
-            address(this),
-            initialTick,
-            upperTick,
-            uint128(token0 == WETH ? WETH_SUPPLY_TO_LP : TOKEN_SUPPLY_TO_LP),
-            ""
-        );
-    }
+    // function uniswapV3MintCallback(uint256 amount0Owed, uint256 amount1Owed, bytes calldata data) external {
+    //     if (amount0Owed > 0) {
+    //         IERC20(token0).transfer(msg.sender, amount0Owed);
+    //     }
+    //     if (amount1Owed > 0) {
+    //         IERC20(token1).transfer(msg.sender, amount1Owed);
+    //     }
+    // }
 
     function setDaoToken(address _daoToken) external onlyOwner {
         require(_daoToken != address(0), "Invalid DAO token address");
         require(daoToken == address(0), "DAO token already set");
         daoToken = _daoToken;
     }
+     function setSecondToken(address _daoToken) external onlyOwner {
+        require(_daoToken != address(0), "Invalid second token address");
+        require(secondToken == address(0), "DAO token already set");
+        secondToken = _daoToken;
+    }
+   
+   
+//    function calculateLiquidity(
+//     uint256 amount0,          // how many units of token0 we can supply
+//     uint256 amount1,          // how many units of token1 we can supply
+//     int24 tickLower,
+//     int24 tickUpper,
+//     uint160 currentSqrtPrice
+// ) public pure returns (uint128) {
+//      uint256 naiveMin = (amount0 < amount1) ? amount0 : amount1;
+//     return uint128(naiveMin);
+// }
 
     // Allow contributors to get a refund if the goal is not reached
     function refund() external nonReentrant {
