@@ -1,21 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
-
-import {SqrtPriceMath} from "@uniswap/v3-core/contracts/libraries/SqrtPriceMath.sol";
-import {INonfungiblePositionManager, IVelodromeFactory, ILockerFactory, ILocker} from "./interface.sol";
-
-import {ICLFactory} from "./interfaces/ICLFactory.sol";
-import {ICLPool} from "./interfaces/ICLPool.sol";
-
-import {IERC721Receiver} from "./LPLocker/IERC721Receiver.sol";
 import {DaaoToken} from "./DaaoToken.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ICLPool} from "./interfaces/ICLPool.sol";
+import {ICLFactory} from "./interfaces/ICLFactory.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {TickMath} from "v3-core/libraries/TickMath.sol";
+import {IERC721Receiver} from "./LPLocker/IERC721Receiver.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {INonfungiblePositionManager, IVelodromeFactory, ILockerFactory, ILocker} from "./interface.sol";
 
 contract Daao is Ownable, ReentrancyGuard {
     using SafeERC20 for ERC20;
