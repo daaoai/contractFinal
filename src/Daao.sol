@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {DaaoToken} from "./DaaoToken.sol";
+import {DaaoToken} from "./DaosWorldV1Token.sol";
 import {ICLPool} from "./interfaces/ICLPool.sol";
 import {ICLFactory} from "./interfaces/ICLFactory.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -36,7 +36,7 @@ contract Daao is Ownable, ReentrancyGuard {
         IVelodromeFactory(0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F);
     INonfungiblePositionManager public constant POSITION_MANAGER =
         INonfungiblePositionManager(0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702);
-    address public constant MODE = 0xDfc7C877a950e49D2610114102175A06C2e3167a;
+    address public constant MODE = 0x4200000000000000000000000000000000000006;
     ILockerFactory public liquidityLockerFactory;
     address public liquidityLocker;
 
@@ -279,8 +279,6 @@ contract Daao is Ownable, ReentrancyGuard {
         require(goalReached, "Fundraising goal not reached");
         require(!fundraisingFinalized, "DAO tokens already minted");
         require(daoToken != address(0), "Token not set");
-
-        require(secondToken != address(0), "secondToken not set");
         emit DebugLog("Starting finalizeFundraising");
         DaaoToken token = DaaoToken(daoToken);
         daoToken = address(token);
@@ -289,8 +287,7 @@ contract Daao is Ownable, ReentrancyGuard {
         for (uint256 i = 0; i < contributors.length; i++) {
             address contributor = contributors[i];
             uint256 contribution = contributions[contributor];
-            uint256 tokensToMint = (contribution * SUPPLY_TO_FUNDRAISERS) /
-                totalRaised;
+            uint256 tokensToMint = (contribution * SUPPLY_TO_FUNDRAISERS) / totalRaised;
 
             emit MintDetails(contributor, tokensToMint);
 
