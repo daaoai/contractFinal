@@ -9,7 +9,7 @@ DaaO is a protocol enabling creation of AI-powered DAOs on Mode Network with aut
 ## Scope
 
 ### In Scope
-* Commit hash: **`[027bc7ab16739b1dc9580424b79ec78b1b458f27]`**
+* Commit hash: **`[85b759da2eda23a71032c3dac023a73e63afa167]`**
 
 ```solidity
 src
