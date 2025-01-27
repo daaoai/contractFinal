@@ -318,8 +318,8 @@ contract Daao is Ownable, ReentrancyGuard {
         if (daoToken < MODE) {
             token0 = daoToken;
             token1 = MODE;
-            amountToken0ForLP = amountForLP;
-            amountToken1ForLP = 4 * amountForLP;
+            amountToken0ForLP = 4 * amountForLP;
+            amountToken1ForLP = amountForLP;
         } else {
             token0 = MODE;
             token1 = daoToken;
@@ -327,7 +327,7 @@ contract Daao is Ownable, ReentrancyGuard {
             amountToken1ForLP = 4 * amountForLP;
         }
 
-        token.mint(address(this), 4 * amountForLP); // Is is At correct pos?? i think NO
+        token.mint(address(this), 4 * amountForLP);
 
         INonfungiblePositionManager.MintParams
             memory params = INonfungiblePositionManager.MintParams(
