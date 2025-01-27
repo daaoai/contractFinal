@@ -17,8 +17,18 @@ contract Daao is Ownable, ReentrancyGuard {
     using SafeERC20 for ERC20;
     using TickMath for int24;
 
+    enum WhitelistTier {
+        None,
+        Platinum,
+        Gold,
+        Silver
+    }
+
     uint24 public constant UNI_V3_FEE = 500;
     int24 public constant TICKING_SPACE = 100;
+    uint256 public GOLD_DEFAULT_LIMIT = 0.5 ether;
+    uint256 public SILVER_DEFAULT_LIMIT = 0.1 ether;
+    uint256 public PLATINUM_DEFAULT_LIMIT = 1 ether;
     uint256 public constant WETH_SUPPLY_TO_LP = 0.00001 ether;
     uint256 public constant TOKEN_SUPPLY_TO_LP = 0.00002 ether;
 
@@ -51,31 +61,34 @@ contract Daao is Ownable, ReentrancyGuard {
     uint256 public maxPublicContributionAmount;
 
     // The amount of ETH you've contributed
+    mapping(WhitelistTier => uint256) public tierLimits;
+    mapping(address => WhitelistTier) public userTiers;
     mapping(address => uint256) public contributions;
     mapping(address => bool) public whitelist;
     address[] public whitelistArray;
     address[] public contributors;
 
-    event Contribution(address indexed contributor, uint256 amount);
-    event FundraisingFinalized(bool success);
-    event Refund(address indexed contributor, uint256 amount);
-    event AddWhitelist(address);
-    event RemoveWhitelist(address);
     event DebugLog(string message);
-    event MintDetails(address indexed contributor, uint256 tokensToMint);
+    event RemoveWhitelist(address);
+    event LPTokenMinted(uint256 tokenId);
     event PoolCreated(address indexed pool);
+    event LockerInitialized(uint256 tokenId);
+    event FundraisingFinalized(bool success);
     event PoolInitialized(uint160 sqrtPriceX96);
+    event LockerDeployed(address indexed lockerAddress);
+    event Refund(address indexed contributor, uint256 amount);
+    event TokenApproved(address indexed token, uint256 amount);
+    event AddWhitelist(address indexed user, WhitelistTier tier);
+    event Contribution(address indexed contributor, uint256 amount);
+    event MintDetails(address indexed contributor, uint256 tokensToMint);
+    event TierLimitUpdated(WhitelistTier indexed teir, uint256 _newLimit);
+    event TokenTransferredToLocker(uint256 tokenId, address lockerAddress);
     event MintParamsCreated(
         uint256 tokenId,
         address token0,
         address token1,
         uint256 liquidity
     );
-    event TokenApproved(address indexed token, uint256 amount);
-    event LPTokenMinted(uint256 tokenId);
-    event LockerDeployed(address indexed lockerAddress);
-    event TokenTransferredToLocker(uint256 tokenId, address lockerAddress);
-    event LockerInitialized(uint256 tokenId);
     address public token0;
     address public token1;
 
@@ -112,14 +125,29 @@ contract Daao is Ownable, ReentrancyGuard {
         maxWhitelistAmount = _maxWhitelistAmount;
         protocolAdmin = _protocolAdmin;
         maxPublicContributionAmount = _maxPublicContributionAmount;
+
+        // Teir allocation
+        tierLimits[WhitelistTier.Platinum] = PLATINUM_DEFAULT_LIMIT;
+        tierLimits[WhitelistTier.Gold] = GOLD_DEFAULT_LIMIT;
+        tierLimits[WhitelistTier.Silver] = SILVER_DEFAULT_LIMIT;
     }
 
     function contribute() public payable nonReentrant {
         require(!goalReached, "Goal already reached");
         require(block.timestamp < fundraisingDeadline, "Deadline hit");
         require(msg.value > 0, "Contribution must be greater than 0");
+
+        // Must be whitelisted
+        WhitelistTier userTier = userTiers[msg.sender];
+        require(userTier != WhitelistTier.None, "Not whitelisted");
+        // Contribution must boolow teir limit
+        uint256 userLimit = tierLimits[userTier];
+        require(
+            contributions[msg.sender] + msg.value <= userLimit,
+            "Exceeding tier limit"
+        );
+
         if (maxWhitelistAmount > 0) {
-            require(whitelist[msg.sender], "You are not whitelisted");
             require(
                 contributions[msg.sender] + msg.value <= maxWhitelistAmount,
                 "Exceeding maxWhitelistAmount"
@@ -145,25 +173,57 @@ contract Daao is Ownable, ReentrancyGuard {
         contributions[msg.sender] += effectiveContribution;
         totalRaised += effectiveContribution;
 
-        emit Contribution(msg.sender, effectiveContribution);
-
         if (totalRaised == fundraisingGoal) {
             goalReached = true;
         }
+
+        emit Contribution(msg.sender, effectiveContribution);
     }
 
-    function addToWhitelist(address[] calldata addresses) external {
+    function addToWhitelist(
+        address[] calldata _addresses,
+        WhitelistTier[] calldata _tiers
+    ) external {
         require(
             msg.sender == owner() || msg.sender == protocolAdmin,
             "Must be owner or protocolAdmin"
         );
-        for (uint256 i = 0; i < addresses.length; i++) {
-            if (!whitelist[addresses[i]]) {
-                whitelist[addresses[i]] = true;
-                whitelistArray.push(addresses[i]);
-                emit AddWhitelist(addresses[i]);
-            }
+        require(_addresses.length == _tiers.length, "Arrays length mismatch");
+        require(_addresses.length > 0, "Empty arrays");
+
+        for (uint256 i = 0; i < _addresses.length; i++) {
+            require(_addresses[i] != address(0), "Invalid address");
+            require(_tiers[i] != WhitelistTier.None, "Invalid tier");
+
+            userTiers[_addresses[i]] = _tiers[i];
+
+            // if (!whitelist[_addresses[i]]) {
+            //     whitelist[_addresses[i]] = true;
+            //     whitelistArray.push(_addresses[i]);
+            // }
+            emit AddWhitelist(_addresses[i], _tiers[i]);
         }
+    }
+
+    function updateTierLimit(WhitelistTier _tier, uint256 _newLimit) external {
+        require(
+            msg.sender == owner() || msg.sender == protocolAdmin,
+            "Not authorized"
+        );
+        require(_tier != WhitelistTier.None, "Invalid tier");
+        require(_newLimit > 0, "Invalid limit");
+
+        tierLimits[_tier] = _newLimit;
+
+        if (_tier == WhitelistTier.Gold) {
+            GOLD_DEFAULT_LIMIT = _newLimit;
+        } else if (_tier == WhitelistTier.Silver) {
+            SILVER_DEFAULT_LIMIT = _newLimit;
+        } else {
+            PLATINUM_DEFAULT_LIMIT = _newLimit;
+        }
+
+        emit TierLimitUpdated(_tier, _newLimit);
     }
 
     function getWhitelistLength() public view returns (uint256) {
@@ -175,15 +235,23 @@ contract Daao is Ownable, ReentrancyGuard {
             msg.sender == owner() || msg.sender == protocolAdmin,
             "Must be owner or protocolAdmin"
         );
-        whitelist[removedAddress] = false;
 
-        for (uint256 i = 0; i < whitelistArray.length; i++) {
-            if (whitelistArray[i] == removedAddress) {
-                whitelistArray[i] = whitelistArray[whitelistArray.length - 1];
-                whitelistArray.pop();
-                break;
-            }
-        }
+        require(removedAddress != address(0), "Invalid address");
+        require(
+            userTiers[removedAddress] != WhitelistTier.None,
+            "Address not whitelisted"
+        );
+        userTiers[removedAddress] = WhitelistTier.None;
+
+        // whitelist[removedAddress] = false;
+
+        // for (uint256 i = 0; i < whitelistArray.length; i++) {
+        //     if (whitelistArray[i] == removedAddress) {
+        //         whitelistArray[i] = whitelistArray[whitelistArray.length - 1];
+        //         whitelistArray.pop();
+        //         break;
+        //     }
+        // }
 
         emit RemoveWhitelist(removedAddress);
     }
