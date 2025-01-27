@@ -303,8 +303,7 @@ contract Daao is Ownable, ReentrancyGuard {
         uint256 totalCollected = address(this).balance;
         uint256 amountForLP = (totalCollected * LP_PERCENTAGE) / 100;
         uint256 amountForTreasury = totalCollected - amountForLP;
-
-        // Transfer treasury amount to owner
+        // Transfer treasury amount to owner (We are left with LP amount)
         (bool success, ) = owner().call{value: amountForTreasury}("");
         require(success, "Treasury transfer failed");
 
@@ -325,8 +324,9 @@ contract Daao is Ownable, ReentrancyGuard {
             token0 = secondToken;
             token1 = daoToken;
         }
-        uint256 amountToken0ForLP = 10_000 ether; // "bigger" example
-        uint256 amountToken1ForLP = 10_000 ether; // "bigger" example
+
+        uint256 amountToken0ForLP = amountForLP; // For first token
+        uint256 amountToken1ForLP = amountForLP;
 
         INonfungiblePositionManager.MintParams
             memory params = INonfungiblePositionManager.MintParams(
