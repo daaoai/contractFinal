@@ -10,7 +10,6 @@ contract CLPoolRouter is ICLSwapCallback {
     int256 private _amount0Delta;
     int256 private _amount1Delta;
 
-    // Events for better tracking
     event SwapExecuted(
         address indexed pool,
         address indexed sender,
@@ -18,7 +17,8 @@ contract CLPoolRouter is ICLSwapCallback {
         int256 amountSpecified,
         uint160 sqrtPriceLimitX96,
         int256 amount0Delta,
-        int256 amount1Delta
+        int256 amount1Delta,
+        uint256 outputAmount 
     );
 
     event ApprovalHandled(
@@ -34,7 +34,6 @@ contract CLPoolRouter is ICLSwapCallback {
         return IERC20Minimal(token).allowance(owner, address(this));
     }
 
-    // Internal function to handle token approval
     function _handleApproval(address token, uint256 amount) internal {
         IERC20Minimal tokenContract = IERC20Minimal(token);
         uint256 currentAllowance = tokenContract.allowance(
@@ -43,11 +42,10 @@ contract CLPoolRouter is ICLSwapCallback {
         );
 
         if (currentAllowance < amount) {
-            // If current allowance is not zero but less than required, reset it
             if (currentAllowance > 0) {
                 tokenContract.approve(address(this), 0);
             }
-            // Approve the required amount
+   
             require(
                 tokenContract.approve(address(this), amount),
                 "Approval failed"
@@ -70,20 +68,23 @@ contract CLPoolRouter is ICLSwapCallback {
             uint160 nextSqrtRatio
         )
     {
-        // Get token that needs approval
-        address token = zeroForOne
-            ? ICLPool(pool).token0()
-            : ICLPool(pool).token1();
+        
+        address tokenIn = zeroForOne
+        ? ICLPool(pool).token0()
+        : ICLPool(pool).token1();
+    address tokenOut = zeroForOne
+        ? ICLPool(pool).token1()
+        : ICLPool(pool).token0();
         uint256 amount = uint256(
             amountSpecified > 0 ? amountSpecified : -amountSpecified
         );
+        
+        _handleApproval(tokenIn, amount);
 
-        // Handle approval internally
-        _handleApproval(token, amount);
+         IERC20Minimal(tokenIn).transferFrom(msg.sender, pool, amount);
 
-        // ================================================= //
         (amount0Delta, amount1Delta) = ICLPool(pool).swap(
-            address(0),
+            address(this),
             zeroForOne,
             amountSpecified,
             sqrtPriceLimitX96,
@@ -91,7 +92,20 @@ contract CLPoolRouter is ICLSwapCallback {
         );
 
         (nextSqrtRatio, , , , , ) = ICLPool(pool).slot0();
-        // ================================================= //
+        uint256 outputAmount;
+    if (zeroForOne) {
+        require(amount1Delta < 0, "Invalid amount1Delta");
+        outputAmount = uint256(-amount1Delta);
+    } else {
+        require(amount0Delta < 0, "Invalid amount0Delta");
+        outputAmount = uint256(-amount0Delta);
+    }
+    
+     if (outputAmount > 0) {
+        uint256 poolBalance = IERC20Minimal(tokenOut).balanceOf(address(this));
+        require(poolBalance >= outputAmount, "Insufficient pool balance for output");
+        IERC20Minimal(tokenOut).transfer(msg.sender, outputAmount);
+    }
 
         emit SwapExecuted(
             pool,
@@ -100,7 +114,8 @@ contract CLPoolRouter is ICLSwapCallback {
             amountSpecified,
             sqrtPriceLimitX96,
             amount0Delta,
-            amount1Delta
+            amount1Delta,
+            outputAmount 
         );
     }
 
