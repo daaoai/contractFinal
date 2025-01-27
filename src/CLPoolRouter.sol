@@ -27,6 +27,13 @@ contract CLPoolRouter is ICLSwapCallback {
         uint256 amount
     );
 
+    function checkApproval(
+        address token,
+        address owner
+    ) external view returns (uint256) {
+        return IERC20Minimal(token).allowance(owner, address(this));
+    }
+
     // Internal function to handle token approval
     function _handleApproval(address token, uint256 amount) internal {
         IERC20Minimal tokenContract = IERC20Minimal(token);
