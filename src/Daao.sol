@@ -315,11 +315,13 @@ contract Daao is Ownable, ReentrancyGuard {
         if (daoToken < MODE) {
             token0 = daoToken;
             token1 = MODE;
+            // 4:1 mapping (Token Ratio in pool) == for 1 WETH, 4 of our token will be paired
             amountToken0ForLP = 4 * amountForLP;
             amountToken1ForLP = amountForLP;
         } else {
             token0 = MODE;
             token1 = daoToken;
+            // 4:1 mapping (Token Ratio in pool) == for 1 WETH, 4 of our token will be paired
             amountToken0ForLP = amountForLP;
             amountToken1ForLP = 4 * amountForLP;
         }
