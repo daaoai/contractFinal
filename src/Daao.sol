@@ -31,14 +31,12 @@ contract Daao is Ownable, ReentrancyGuard {
     uint256 public GOLD_DEFAULT_LIMIT = 0.5 ether;
     uint256 public SILVER_DEFAULT_LIMIT = 0.1 ether;
     uint256 public PLATINUM_DEFAULT_LIMIT = 1 ether;
-    uint256 public constant WETH_SUPPLY_TO_LP = 0.00001 ether;
-    uint256 public constant TOKEN_SUPPLY_TO_LP = 0.00002 ether;
 
     IVelodromeFactory public constant Velodrome_factory =
         IVelodromeFactory(0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F);
     INonfungiblePositionManager public constant POSITION_MANAGER =
         INonfungiblePositionManager(0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702);
-    address public constant WETH = 0x4200000000000000000000000000000000000006;
+    address public constant MODE = 0xDfc7C877a950e49D2610114102175A06C2e3167a;
     ILockerFactory public liquidityLockerFactory;
     address public liquidityLocker;
 
@@ -310,23 +308,26 @@ contract Daao is Ownable, ReentrancyGuard {
         emit FundraisingFinalized(true);
         fundraisingFinalized = true;
 
-        int24 iprice = 7000;
+        int24 iprice = -13862;
         uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(iprice);
         emit DebugLog("Calculated sqrtPriceX96");
 
-        address token0;
-        address token1;
+        uint256 amountToken0ForLP;
+        uint256 amountToken1ForLP;
 
-        if (daoToken < secondToken) {
+        if (daoToken < MODE) {
             token0 = daoToken;
-            token1 = secondToken;
+            token1 = MODE;
+            amountToken0ForLP = amountForLP;
+            amountToken1ForLP = 4 * amountForLP;
         } else {
-            token0 = secondToken;
+            token0 = MODE;
             token1 = daoToken;
+            amountToken0ForLP = amountForLP;
+            amountToken1ForLP = 4 * amountForLP;
         }
 
-        uint256 amountToken0ForLP = amountForLP; // For first token
-        uint256 amountToken1ForLP = amountForLP;
+        token.mint(address(this), 4 * amountForLP); // Is is At correct pos?? i think NO
 
         INonfungiblePositionManager.MintParams
             memory params = INonfungiblePositionManager.MintParams(
@@ -343,41 +344,11 @@ contract Daao is Ownable, ReentrancyGuard {
                 block.timestamp,
                 sqrtPriceX96
             );
-        // uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
-        // IERC20(WETH).approve(address(POSITION_MANAGER), WETH_SUPPLY_TO_LP);
-
-        if (token0 == address(token)) {
-            // If token0 is the DAO token we control
-            token.mint(address(this), amountToken0ForLP);
-        } else {
-            // If you have a custom ERC20 secondToken, you'd handle it similarly
-            // Example:
-            DaaoToken(secondToken).mint(address(this), amountToken0ForLP);
-        }
-
-        if (token1 == address(token)) {
-            // If token1 is the DAO token
-            token.mint(address(this), amountToken1ForLP);
-        } else {
-            // If secondToken is token1
-            DaaoToken(secondToken).mint(address(this), amountToken1ForLP);
-        }
 
         token.renounceOwnership();
         IERC20(token0).approve(address(POSITION_MANAGER), amountToken0ForLP);
         IERC20(token1).approve(address(POSITION_MANAGER), amountToken1ForLP);
-        // Mint additional tokens for LP
-        // Mint -> this (X)
-        // (X) => 0x00000000
-        //
-        // token.mint(address(this), TOKEN_SUPPLY_TO_LP);
         emit DebugLog("Minted additional tokens for LP");
-        // token.renounceOwnership();
-        emit DebugLog("Ownership renounced");
-
-        // Approve tokens for POSITION_MANAGER
-        // token.approve(address(POSITION_MANAGER), TOKEN_SUPPLY_TO_LP);
-        // emit TokenApproved(address(token), TOKEN_SUPPLY_TO_LP);
 
         (uint256 tokenId, , , ) = POSITION_MANAGER.mint(params);
         emit LPTokenMinted(tokenId);
