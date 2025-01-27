@@ -4,7 +4,7 @@ A decentralized platform for creating and managing DAOs with integrated liquidit
 
 ## Core Components
 
-### DaosWorldV1
+### Daao
 The main contract handling DAO creation, fundraising, and liquidity management. Features include:
 - Customizable fundraising parameters
 - Whitelist support
@@ -12,7 +12,7 @@ The main contract handling DAO creation, fundraising, and liquidity management. 
 - LP token locking mechanism
 - Built-in tax system
 
-### DaosWorldV1Token
+### DaaoToken
 Standard ERC20 token implementation with:
 - Minting capabilities controlled by owner
 - Full ERC20 compliance

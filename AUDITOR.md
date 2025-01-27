@@ -15,8 +15,8 @@ DAAO is a protocol enabling efficient DAO creation and management on Mode Networ
 src/
 ├── Agent
 │   ├── AgentToken.sol
-├── DaosWorldV1.sol
-├── DaosWorldV1Token.sol
+├── Daao.sol
+├── DaaoToken.sol
 ├── DAOTreasury.sol
 ├── interface.sol
 ├── LockerFactory.sol
