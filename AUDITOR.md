@@ -1,47 +1,95 @@
-# DAOs World Smart Contract Audit Details
+# DaaO Smart Contract Audit Details
 
 ## Repository
-https://github.com/daaoai/contractFinal<br>
+https://github.com/daaoai/daaoai_contracts
 
 ## Overview
-DAAO is a protocol enabling efficient DAO creation and management on Mode Network. Core contracts handle DAO creation, fundraising, liquidity management, and token vesting.
+DaaO is a protocol enabling creation of AI-powered DAOs on Mode Network with automated liquidity management via Velodrome-Slipstream integration. Core contracts handle DAO creation, fundraising, liquidity provisioning through Velodrome-Slipstream, and AI-driven treasury management.
 
 ## Scope
 
 ### In Scope
-* Commit hash: **`[6285a9ed292022e038c6b0f50fa433b9668de784]`**
+* Commit hash: **`[9017c181de0f8c345e41bc0be0efb4c4937e4802]`**
 
 ```solidity
-src/
-├── Agent
-│   ├── AgentToken.sol
+src
+├── CLPoolRouter.sol
 ├── Daao.sol
 ├── DaaoToken.sol
-├── DAOTreasury.sol
 ├── interface.sol
-├── LockerFactory.sol
-├── LpLocker.sol
 ```
 * Solc Version: ^0.8.0
 * To be Deployed on: Mode Network
 
+## Development Environment
+
 ```bash
 # Install
+git clone https://github.com/daaoai/daaoai_contracts
+cd daaoai_contracts
 forge install
 
 # Dependencies
 forge install OpenZeppelin/openzeppelin-contracts --no-commit
-forge install OpenZeppelin/openzeppelin-contracts-upgradeable --no-commit
-forge install Uniswap/v3-core --no-commit
-forge install Uniswap/v3-periphery --no-commit
+forge install velodrome-finance/contracts --no-commit
 
 # Compile
 forge build
-
-# Test
-forge test
 ```
+
+## Key Contract Components
+
+### 1. Daao.sol
+Main contract managing:
+- DAO lifecycle
+- Fundraising process
+- Whitelist management
+- Liquidity pool creation
+- Treasury initialization
+
+### 2. DaaoToken.sol
+ERC20 implementation with:
+- Custom minting logic
+- Supply management
+- Ownership controls
+
+### 3. CLPoolRouter.sol
+Velodrome-Slipstream integration handling:
+- Pool interactions
+- Swap functionality
+- Liquidity management
+
+## Security Considerations
+
+### Access Control
+- Owner functions
+- Protocol admin controls
+- Whitelist management
+
+### State Management
+- Reentrancy protection
+- Contribution tracking
+- Goal monitoring
+- Refund mechanism
+
+### Fund Flow
+- Contribution processing
+- Token distribution
+- Liquidity provision
+- Treasury management
+
+### Time-Based Controls
+- Fundraising deadline
+- Fund expiry
+- Contribution windows
+- Lock periods
 
 ## Setup
 
-Read [this](https://github.com/daaoai/contractFinal?tab=readme-ov-file#setup)
+Follow the installation instructions in the [README.md](https://github.com/daaoai/daaoai_contracts?tab=readme-ov-file#installation)
+
+## Known Limitations
+
+1. Fixed fee tier (0.05%) for Velodrome pools
+2. Non-upgradeable contracts
+3. Manual whitelist management
