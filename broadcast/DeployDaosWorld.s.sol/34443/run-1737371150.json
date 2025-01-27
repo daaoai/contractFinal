@@ -3,7 +3,7 @@
     {
       "hash": "0xa6ce0984daedf4aa63b405712938686377a499d71e81292e48a00bb6503fbcac",
       "transactionType": "CREATE",
-      "contractName": "DaosWorldV1Token",
+      "contractName": "DaaoToken",
       "contractAddress": "0x7b21090828d2df682c0b9f4647aba92e6a8989d3",
       "function": null,
       "arguments": [
@@ -24,7 +24,7 @@
     {
       "hash": "0x8133500fec0b2727ec5e9daabaa674aad45463e941e8dfbece6f201c33be753c",
       "transactionType": "CREATE",
-      "contractName": "DaosWorldV1",
+      "contractName": "Daao",
       "contractAddress": "0x3edee6f9bc124862960113bdab385338bac29300",
       "function": null,
       "arguments": [

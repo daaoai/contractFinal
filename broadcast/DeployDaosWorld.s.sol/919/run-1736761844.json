@@ -3,7 +3,7 @@
     {
       "hash": "0xafd42195a43cf201e9f95fb499d77ffea72bb386bfac4838851ea4a5317ccf90",
       "transactionType": "CREATE",
-      "contractName": "DaosWorldV1Token",
+      "contractName": "DaaoToken",
       "contractAddress": "0x99ea9e6ded51a59ac16eacec275775eb82899a70",
       "function": null,
       "arguments": [
@@ -24,7 +24,7 @@
     {
       "hash": "0xbb6da73aa586b909b4c6a990b531218c5e085964ce70b58ec85d1498dc8bc6fa",
       "transactionType": "CREATE",
-      "contractName": "DaosWorldV1",
+      "contractName": "Daao",
       "contractAddress": "0xfc5b9a57747cbd6aa356381d2671b2e49c513937",
       "function": null,
       "arguments": [
@@ -53,7 +53,7 @@
     {
       "hash": "0xd5f46a1e104e1f15db85e3cf46faccf5ad84cd4853ee60b709adba35483c46ce",
       "transactionType": "CALL",
-      "contractName": "DaosWorldV1",
+      "contractName": "Daao",
       "contractAddress": "0xfc5b9a57747cbd6aa356381d2671b2e49c513937",
       "function": "addToWhitelist(address[])",
       "arguments": [

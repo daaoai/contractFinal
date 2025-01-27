@@ -3,7 +3,7 @@
     {
       "hash": "0x41db426c2971191e1f88b31634a92e8d659fe7695e552ad1bdae75b3442bbdd3",
       "transactionType": "CREATE",
-      "contractName": "DaosWorldV1Token",
+      "contractName": "DaaoToken",
       "contractAddress": "0xe124d7d43f57ad15b58bbbf20c0201dc79fab5f5",
       "function": null,
       "arguments": [
@@ -24,7 +24,7 @@
     {
       "hash": "0x8cc2b23f2e2fecaab77bec7e4c5e5d265f028ef7c98f93f54059a063bcddacf3",
       "transactionType": "CREATE",
-      "contractName": "DaosWorldV1",
+      "contractName": "Daao",
       "contractAddress": "0xb2f2538cf23b4136cdc8da1a8811c413bb3d066d",
       "function": null,
       "arguments": [
@@ -53,7 +53,7 @@
     {
       "hash": "0xbc50e747c2a56e2b0ba6be688599e4a9dc36ef30b462a85858fa74c34c598bba",
       "transactionType": "CALL",
-      "contractName": "DaosWorldV1Token",
+      "contractName": "DaaoToken",
       "contractAddress": "0xe124d7d43f57ad15b58bbbf20c0201dc79fab5f5",
       "function": "transferOwnership(address)",
       "arguments": [
