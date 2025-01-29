@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {DaaoToken} from "./DaosWorldV1Token.sol";
+import {DaaoToken} from "./DaaoToken.sol";
 import {ICLPool} from "./interfaces/ICLPool.sol";
 import {ICLFactory} from "./interfaces/ICLFactory.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
