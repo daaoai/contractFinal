@@ -11,7 +11,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {INonfungiblePositionManager, IVelodromeFactory, ILockerFactory, ILocker} from "./interface.sol";
+import {IWETH, INonfungiblePositionManager, IVelodromeFactory, ILockerFactory, ILocker} from "./interface.sol";
 
 contract Daao is Ownable, ReentrancyGuard {
     using SafeERC20 for ERC20;
@@ -28,6 +28,12 @@ contract Daao is Ownable, ReentrancyGuard {
     int24 public constant TICKING_SPACE = 100;
     uint256 public constant LP_PERCENTAGE = 10;
     uint256 public constant TREASURY_PERCENTAGE = 90;
+    uint256 public constant TOTAL_SUPPLY = 1_000_000_000 * 1e18; // 1 billion total supply
+    uint256 public constant POOL_PERCENTAGE = 10; // 10% for pool
+    uint256 public constant CONTRIBUTORS_PERCENTAGE = 90; // 90% for contributors
+    uint256 public constant SUPPLY_TO_FUNDRAISERS =
+        (TOTAL_SUPPLY * CONTRIBUTORS_PERCENTAGE) / 100; // 900 million tokens
+
     uint256 public GOLD_DEFAULT_LIMIT = 0.5 ether;
     uint256 public SILVER_DEFAULT_LIMIT = 0.1 ether;
     uint256 public PLATINUM_DEFAULT_LIMIT = 1 ether;
@@ -46,7 +52,6 @@ contract Daao is Ownable, ReentrancyGuard {
     bool public goalReached;
     uint256 public fundraisingDeadline;
     uint256 public fundExpiry;
-    uint256 public constant SUPPLY_TO_FUNDRAISERS = 1_000_000_000 * 1e18;
     uint8 public lpFeesCut = 60;
     address public protocolAdmin;
     string public name;
@@ -172,6 +177,9 @@ contract Daao is Ownable, ReentrancyGuard {
 
         contributions[msg.sender] += effectiveContribution;
         totalRaised += effectiveContribution;
+        if (effectiveContribution > 0) {
+            IWETH(MODE).deposit{value: effectiveContribution}();
+        }
 
         if (totalRaised == fundraisingGoal) {
             goalReached = true;
@@ -287,7 +295,8 @@ contract Daao is Ownable, ReentrancyGuard {
         for (uint256 i = 0; i < contributors.length; i++) {
             address contributor = contributors[i];
             uint256 contribution = contributions[contributor];
-            uint256 tokensToMint = (contribution * SUPPLY_TO_FUNDRAISERS) / totalRaised;
+            uint256 tokensToMint = (contribution * SUPPLY_TO_FUNDRAISERS) /
+                totalRaised;
 
             emit MintDetails(contributor, tokensToMint);
 
@@ -295,17 +304,17 @@ contract Daao is Ownable, ReentrancyGuard {
         }
 
         // ADD THE NEW CODE RIGHT HERE, AFTER TOKEN DISTRIBUTION BUT BEFORE POOL CREATION
-        uint256 totalCollected = address(this).balance;
-        uint256 amountForLP = (totalCollected * LP_PERCENTAGE) / 100;
+        uint256 totalCollected = IERC20(MODE).balanceOf(address(this));
+        uint256 amountForLP = (totalCollected * LP_PERCENTAGE) / 100; // 10% of WETH for LP
+        uint256 tokensForLP = (TOTAL_SUPPLY * POOL_PERCENTAGE) / 100; // 10% of tokens for LP
         uint256 amountForTreasury = totalCollected - amountForLP;
-        // Transfer treasury amount to owner (We are left with LP amount)
-        (bool success, ) = owner().call{value: amountForTreasury}("");
-        require(success, "Treasury transfer failed");
+        //Eth to Mode Conversion
+        IERC20(MODE).transfer(owner(), amountForTreasury);
 
         emit FundraisingFinalized(true);
         fundraisingFinalized = true;
 
-        int24 iprice = -13862;
+        int24 iprice = 7000;
         uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(iprice);
         emit DebugLog("Calculated sqrtPriceX96");
 
@@ -315,18 +324,17 @@ contract Daao is Ownable, ReentrancyGuard {
         if (daoToken < MODE) {
             token0 = daoToken;
             token1 = MODE;
-            // 4:1 mapping (Token Ratio in pool) == for 1 WETH, 4 of our token will be paired
-            amountToken0ForLP = 4 * amountForLP;
+            amountToken0ForLP = tokensForLP;
             amountToken1ForLP = amountForLP;
         } else {
             token0 = MODE;
             token1 = daoToken;
             // 4:1 mapping (Token Ratio in pool) == for 1 WETH, 4 of our token will be paired
             amountToken0ForLP = amountForLP;
-            amountToken1ForLP = 4 * amountForLP;
+            amountToken1ForLP = tokensForLP;
         }
 
-        token.mint(address(this), 4 * amountForLP);
+        token.mint(address(this), tokensForLP);
 
         INonfungiblePositionManager.MintParams
             memory params = INonfungiblePositionManager.MintParams(

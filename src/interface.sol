@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 interface INonfungiblePositionManager {
     struct MintParams {
         address token0;
@@ -88,6 +90,15 @@ struct ExactInputSingleParams {
     uint256 amountIn;
     uint256 amountOutMinimum;
     uint160 sqrtPriceLimitX96;
+}
+
+interface IWETH is IERC20 {
+    /// @notice Deposit ETH and get back WETH in return
+    function deposit() external payable;
+
+    /// @notice Withdraw WETH and get back ETH
+    /// @param wad The amount of WETH to withdraw (in wei)
+    function withdraw(uint256 wad) external;
 }
 
 interface ISwapRouter {
