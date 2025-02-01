@@ -5,7 +5,7 @@ import {DaaoToken} from "./DaaoToken.sol";
 import {ICLPool} from "./interfaces/ICLPool.sol";
 import {ICLFactory} from "./interfaces/ICLFactory.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {TickMath} from "v3-core/libraries/TickMath.sol";
+import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {IERC721Receiver} from "./LPLocker/IERC721Receiver.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -24,8 +24,15 @@ contract Daao is Ownable, ReentrancyGuard {
         Silver
     }
 
-    uint24 public constant UNI_V3_FEE = 500;
-    int24 public constant TICKING_SPACE = 100;
+    struct WhitelistInfo {
+        WhitelistTier tier;
+        uint256 addedAt;
+        bool isActive;
+    }
+
+    mapping(address => WhitelistInfo) private whitelistInfo;
+    uint256 private whitelistedCount;
+
     uint256 public constant LP_PERCENTAGE = 10;
     uint256 public constant TREASURY_PERCENTAGE = 90;
     uint256 public constant TOTAL_SUPPLY = 1_000_000_000 * 1e18; // 1 billion total supply
@@ -67,10 +74,7 @@ contract Daao is Ownable, ReentrancyGuard {
 
     // The amount of ETH you've contributed
     mapping(WhitelistTier => uint256) public tierLimits;
-    mapping(address => WhitelistTier) public userTiers;
     mapping(address => uint256) public contributions;
-    mapping(address => bool) public whitelist;
-    address[] public whitelistArray;
     address[] public contributors;
 
     event DebugLog(string message);
@@ -83,7 +87,7 @@ contract Daao is Ownable, ReentrancyGuard {
     event LockerDeployed(address indexed lockerAddress);
     event Refund(address indexed contributor, uint256 amount);
     event TokenApproved(address indexed token, uint256 amount);
-    event AddWhitelist(address indexed user, WhitelistTier tier);
+    event UpdateWhitelist(address indexed user, WhitelistTier tier);
     event Contribution(address indexed contributor, uint256 amount);
     event MintDetails(address indexed contributor, uint256 tokensToMint);
     event TierLimitUpdated(WhitelistTier indexed teir, uint256 _newLimit);
@@ -188,7 +192,7 @@ contract Daao is Ownable, ReentrancyGuard {
         emit Contribution(msg.sender, effectiveContribution);
     }
 
-    function addToWhitelist(
+    function addOrUpdateWhitelist(
         address[] calldata _addresses,
         WhitelistTier[] calldata _tiers
     ) external {
@@ -200,17 +204,53 @@ contract Daao is Ownable, ReentrancyGuard {
         require(_addresses.length > 0, "Empty arrays");
 
         for (uint256 i = 0; i < _addresses.length; i++) {
-            require(_addresses[i] != address(0), "Invalid address");
-            require(_tiers[i] != WhitelistTier.None, "Invalid tier");
+            address user = _addresses[i];
+            WhitelistTier newTier = _tiers[i];
 
-            userTiers[_addresses[i]] = _tiers[i];
+            require(user != address(0), "Invalid address");
+            require(newTier != WhitelistTier.None, "Invalid tier");
 
-            // if (!whitelist[_addresses[i]]) {
-            //     whitelist[_addresses[i]] = true;
-            //     whitelistArray.push(_addresses[i]);
-            // }
-            emit AddWhitelist(_addresses[i], _tiers[i]);
+            if (!whitelistInfo[user].isActive) {
+                whitelistedCount++;
+            }
+
+            whitelistInfo[user] = WhitelistInfo({
+                tier: newTier,
+                addedAt: block.timestamp,
+                isActive: true
+            });
+
+            emit UpdateWhitelist(_addresses[i], _tiers[i]);
         }
+    }
+
+    function getWhitelistLength() public view returns (uint256) {
+        return whitelistedCount;
+    }
+
+    function getWhitelistInfo(address _user) public view returns (bool isActive, WhitelistTier tier, uint256 addedAt) {
+        WhitelistInfo memory info = whitelistInfo[_user];
+        return (info.isActive, info.tier, info.addedAt);
+    }
+
+    function removeFromWhitelist(address removedAddress) external {
+        require(
+            msg.sender == owner() || msg.sender == protocolAdmin,
+            "Must be owner or protocolAdmin"
+        );
+
+        require(removedAddress != address(0), "Invalid address");
+
+        WhitelistInfo storage _userInfo = whitelistInfo[removedAddress];
+        require(
+            _userInfo.isActive,
+            "Address not whitelisted"
+        );
+        _userInfo.isActive = false;
+        _userInfo.tier = WhitelistTier.None;
+        whitelistedCount--;
+
+        emit RemoveWhitelist(removedAddress);
     }
 
     function updateTierLimit(WhitelistTier _tier, uint256 _newLimit) external {
@@ -234,35 +274,6 @@ contract Daao is Ownable, ReentrancyGuard {
         emit TierLimitUpdated(_tier, _newLimit);
     }
 
-    function getWhitelistLength() public view returns (uint256) {
-        return whitelistArray.length;
-    }
-
-    function removeFromWhitelist(address removedAddress) external {
-        require(
-            msg.sender == owner() || msg.sender == protocolAdmin,
-            "Must be owner or protocolAdmin"
-        );
-
-        require(removedAddress != address(0), "Invalid address");
-        require(
-            userTiers[removedAddress] != WhitelistTier.None,
-            "Address not whitelisted"
-        );
-        userTiers[removedAddress] = WhitelistTier.None;
-
-        // whitelist[removedAddress] = false;
-
-        // for (uint256 i = 0; i < whitelistArray.length; i++) {
-        //     if (whitelistArray[i] == removedAddress) {
-        //         whitelistArray[i] = whitelistArray[whitelistArray.length - 1];
-        //         whitelistArray.pop();
-        //         break;
-        //     }
-        // }
-
-        emit RemoveWhitelist(removedAddress);
-    }
 
     function setMaxWhitelistAmount(uint256 _maxWhitelistAmount) public {
         require(
@@ -283,7 +294,7 @@ contract Daao is Ownable, ReentrancyGuard {
     }
 
     //Finalize the fundraising and distribute tokens
-    function finalizeFundraising(int24 initialTick, int24 upperTick) external {
+    function finalizeFundraising(int24 TICKING_SPACE, int24 initialTick, int24 upperTick) external {
         require(goalReached, "Fundraising goal not reached");
         require(!fundraisingFinalized, "DAO tokens already minted");
         require(daoToken != address(0), "Token not set");
