@@ -119,11 +119,11 @@ contract Daao is Ownable, ReentrancyGuard {
         );
         require(
             _fundraisingDeadline > block.timestamp,
-            "_fundraisingDeadline > block.timestamp"
+            "Deadline must be in the future"
         );
         require(
-            _fundExpiry > fundraisingDeadline,
-            "_fundExpiry > fundraisingDeadline"
+            _fundExpiry > _fundraisingDeadline,
+            "Fund expiry must be greater than fundraising deadline"
         );
         name = _name;
         symbol = _symbol;
