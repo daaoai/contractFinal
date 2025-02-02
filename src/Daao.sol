@@ -12,6 +12,9 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IWETH, INonfungiblePositionManager, IVelodromeFactory, ILockerFactory, ILocker} from "./interface.sol";
+import {FullMath} from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {console} from "forge-std/console.sol";
 
 contract Daao is Ownable, ReentrancyGuard {
     using SafeERC20 for ERC20;
@@ -45,14 +48,15 @@ contract Daao is Ownable, ReentrancyGuard {
     uint256 public SILVER_DEFAULT_LIMIT = 0.1 ether;
     uint256 public PLATINUM_DEFAULT_LIMIT = 1 ether;
 
-    IVelodromeFactory public constant Velodrome_factory =
+    IVelodromeFactory public constant VELODROME_FACTORY =
         IVelodromeFactory(0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F);
     INonfungiblePositionManager public constant POSITION_MANAGER =
         INonfungiblePositionManager(0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702);
-    address public constant MODE = 0x4200000000000000000000000000000000000006;
+    address public constant MODE = 0xDfc7C877a950e49D2610114102175A06C2e3167a;
     ILockerFactory public liquidityLockerFactory;
     address public liquidityLocker;
 
+    int24 private constant TICK_SPACING = 100;
     uint256 public totalRaised;
     uint256 public fundraisingGoal;
     bool public fundraisingFinalized;
@@ -65,17 +69,12 @@ contract Daao is Ownable, ReentrancyGuard {
     string public symbol;
     address public daoToken;
 
-    address public secondToken;
-
-    // If maxWhitelistAmount > 0, then its whitelist only. And this is the max amount you can contribute.
-    uint256 public maxWhitelistAmount;
-    // If maxPublicContributionAmount > 0, then you cannot contribute more than this in public rounds.
-    uint256 public maxPublicContributionAmount;
-
     // The amount of ETH you've contributed
     mapping(WhitelistTier => uint256) public tierLimits;
     mapping(address => uint256) public contributions;
-    address[] public contributors;
+    
+    mapping(uint256 => address) public contributorIndex;
+    uint256 public contributorsCount;
 
     event DebugLog(string message);
     event RemoveWhitelist(address);
@@ -109,9 +108,7 @@ contract Daao is Ownable, ReentrancyGuard {
         uint256 _fundExpiry,
         address _daoManager,
         address _liquidityLockerFactory,
-        uint256 _maxWhitelistAmount,
-        address _protocolAdmin,
-        uint256 _maxPublicContributionAmount
+        address _protocolAdmin
     ) Ownable(_daoManager) {
         require(
             _fundraisingGoal > 0,
@@ -131,9 +128,7 @@ contract Daao is Ownable, ReentrancyGuard {
         fundraisingDeadline = _fundraisingDeadline;
         fundExpiry = _fundExpiry;
         liquidityLockerFactory = ILockerFactory(_liquidityLockerFactory);
-        maxWhitelistAmount = _maxWhitelistAmount;
         protocolAdmin = _protocolAdmin;
-        maxPublicContributionAmount = _maxPublicContributionAmount;
 
         // Teir allocation
         tierLimits[WhitelistTier.Platinum] = PLATINUM_DEFAULT_LIMIT;
@@ -141,51 +136,41 @@ contract Daao is Ownable, ReentrancyGuard {
         tierLimits[WhitelistTier.Silver] = SILVER_DEFAULT_LIMIT;
     }
 
-    function contribute() public payable nonReentrant {
+    function contribute(uint256 _amount) public payable nonReentrant {
         require(!goalReached, "Goal already reached");
         require(block.timestamp < fundraisingDeadline, "Deadline hit");
-        require(msg.value > 0, "Contribution must be greater than 0");
+        require(_amount > 0, "Contribution must be greater than 0");
 
         // Must be whitelisted
-        WhitelistTier userTier = userTiers[msg.sender];
-        require(userTier != WhitelistTier.None, "Not whitelisted");
-        // Contribution must boolow teir limit
-        uint256 userLimit = tierLimits[userTier];
+        WhitelistInfo memory userInfo = whitelistInfo[msg.sender];
+        require(userInfo.isActive && userInfo.tier != WhitelistTier.None, "Not whitelisted");
+        
+        // Contribution must below teir limit
+        uint256 userLimit = tierLimits[userInfo.tier];
+
         require(
-            contributions[msg.sender] + msg.value <= userLimit,
+            contributions[msg.sender] + _amount <= userLimit,
             "Exceeding tier limit"
         );
 
-        if (maxWhitelistAmount > 0) {
-            require(
-                contributions[msg.sender] + msg.value <= maxWhitelistAmount,
-                "Exceeding maxWhitelistAmount"
-            );
-        } else if (maxPublicContributionAmount > 0) {
-            require(
-                contributions[msg.sender] + msg.value <=
-                    maxPublicContributionAmount,
-                "Exceeding maxPublicContributionAmount"
-            );
-        }
-
-        uint256 effectiveContribution = msg.value;
-        if (totalRaised + msg.value > fundraisingGoal) {
+        uint256 effectiveContribution = _amount;
+        if (totalRaised + _amount > fundraisingGoal) {
             effectiveContribution = fundraisingGoal - totalRaised;
-            payable(msg.sender).transfer(msg.value - effectiveContribution);
         }
 
-        if (contributions[msg.sender] == 0) {
-            contributors.push(msg.sender);
+        if (effectiveContribution > 0) {
+            SafeERC20.safeTransferFrom(IERC20(MODE), msg.sender, address(this), effectiveContribution);
+
+            if (contributions[msg.sender] == 0) {
+                contributorIndex[contributorsCount] = msg.sender;
+                contributorsCount++;
+            }
         }
 
         contributions[msg.sender] += effectiveContribution;
         totalRaised += effectiveContribution;
-        if (effectiveContribution > 0) {
-            IWETH(MODE).deposit{value: effectiveContribution}();
-        }
 
-        if (totalRaised == fundraisingGoal) {
+        if(totalRaised >= fundraisingGoal) {
             goalReached = true;
         }
 
@@ -259,7 +244,7 @@ contract Daao is Ownable, ReentrancyGuard {
             "Not authorized"
         );
         require(_tier != WhitelistTier.None, "Invalid tier");
-        require(_newLimit > 0, "Invalid limit");
+        require(_newLimit <= fundraisingGoal, "Invalid limit");
 
         tierLimits[_tier] = _newLimit;
 
@@ -274,102 +259,92 @@ contract Daao is Ownable, ReentrancyGuard {
         emit TierLimitUpdated(_tier, _newLimit);
     }
 
-
-    function setMaxWhitelistAmount(uint256 _maxWhitelistAmount) public {
-        require(
-            msg.sender == owner() || msg.sender == protocolAdmin,
-            "Must be owner or protocolAdmin"
-        );
-        maxWhitelistAmount = _maxWhitelistAmount;
-    }
-
-    function setMaxPublicContributionAmount(
-        uint256 _maxPublicContributionAmount
-    ) public {
-        require(
-            msg.sender == owner() || msg.sender == protocolAdmin,
-            "Must be owner or protocolAdmin"
-        );
-        maxPublicContributionAmount = _maxPublicContributionAmount;
-    }
-
     //Finalize the fundraising and distribute tokens
-    function finalizeFundraising(int24 TICKING_SPACE, int24 initialTick, int24 upperTick) external {
+    function finalizeFundraising(uint256 amount0Min, uint256 amount1Min) external{
+        require(
+            msg.sender == owner() || msg.sender == protocolAdmin,
+            "Not authorized"
+        );
         require(goalReached, "Fundraising goal not reached");
         require(!fundraisingFinalized, "DAO tokens already minted");
-        require(daoToken != address(0), "Token not set");
-        emit DebugLog("Starting finalizeFundraising");
-        DaaoToken token = DaaoToken(daoToken);
+
+        DaaoToken token = new DaaoToken(name, symbol);
         daoToken = address(token);
 
+        fundraisingFinalized = true;
         // Mint and distribute tokens to all contributors
-        for (uint256 i = 0; i < contributors.length; i++) {
-            address contributor = contributors[i];
+        for (uint256 i = 0; i < contributorsCount; i++) {
+            address contributor = contributorIndex[i];
             uint256 contribution = contributions[contributor];
-            uint256 tokensToMint = (contribution * SUPPLY_TO_FUNDRAISERS) /
-                totalRaised;
-
-            emit MintDetails(contributor, tokensToMint);
-
-            token.mint(contributor, tokensToMint);
+            if(contribution > 0) {
+                uint256 tokensToMint = (contribution * SUPPLY_TO_FUNDRAISERS) /
+                    totalRaised;
+                token.mint(contributor, tokensToMint);
+                emit MintDetails(contributor, tokensToMint);
+            }
         }
 
         // ADD THE NEW CODE RIGHT HERE, AFTER TOKEN DISTRIBUTION BUT BEFORE POOL CREATION
-        uint256 totalCollected = IERC20(MODE).balanceOf(address(this));
-        uint256 amountForLP = (totalCollected * LP_PERCENTAGE) / 100; // 10% of WETH for LP
-        uint256 tokensForLP = (TOTAL_SUPPLY * POOL_PERCENTAGE) / 100; // 10% of tokens for LP
-        uint256 amountForTreasury = totalCollected - amountForLP;
-        //Eth to Mode Conversion
-        IERC20(MODE).transfer(owner(), amountForTreasury);
+        uint256 totalModeCollected = IERC20(MODE).balanceOf(address(this));
+        uint256 modeTokensForLP = (totalModeCollected * LP_PERCENTAGE) / 100; // 10% of WETH for LP
+        uint256 daoTokensForLP = (TOTAL_SUPPLY * POOL_PERCENTAGE) / 100; // 10% of tokens for LP
+        uint256 modeTokensForTreasury = totalModeCollected - modeTokensForLP;
 
-        emit FundraisingFinalized(true);
-        fundraisingFinalized = true;
-
-        int24 iprice = 7000;
-        uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(iprice);
-        emit DebugLog("Calculated sqrtPriceX96");
+        //Transfer the remaining MODE tokens to the owner
+        SafeERC20.safeTransfer(IERC20(MODE), owner(), modeTokensForTreasury);
 
         uint256 amountToken0ForLP;
         uint256 amountToken1ForLP;
 
-        if (daoToken < MODE) {
+        if(daoToken < address(MODE)){
             token0 = daoToken;
-            token1 = MODE;
-            amountToken0ForLP = tokensForLP;
-            amountToken1ForLP = amountForLP;
+            token1 = address(MODE);
+            amountToken0ForLP = daoTokensForLP;
+            amountToken1ForLP = modeTokensForLP;
         } else {
-            token0 = MODE;
+            token0 = address(MODE);
             token1 = daoToken;
-            // 4:1 mapping (Token Ratio in pool) == for 1 WETH, 4 of our token will be paired
-            amountToken0ForLP = amountForLP;
-            amountToken1ForLP = tokensForLP;
+            amountToken0ForLP = modeTokensForLP;
+            amountToken1ForLP = daoTokensForLP;
         }
 
-        token.mint(address(this), tokensForLP);
+        uint256 price = FullMath.mulDiv(amountToken1ForLP, 1 << 96, amountToken0ForLP);  // Multiply by 2^96 first
+        uint160 sqrtPriceX96 = uint160(Math.sqrt(price) * (1 << 48));  // Then multiply sqrt by 2^48 (half of 96)
+
+        int24 initialTick = TickMath.getTickAtSqrtRatio(sqrtPriceX96);
+
+        int24 tickSpacedLower = int24((initialTick - TICK_SPACING * 1000) / TICK_SPACING) * TICK_SPACING;
+        int24 tickSpacedUpper = int24((initialTick + TICK_SPACING * 1000) / TICK_SPACING) * TICK_SPACING;
+
+        token.mint(address(this), daoTokensForLP);
+        token.renounceOwnership();
+        SafeERC20.safeIncreaseAllowance(IERC20(token0), address(POSITION_MANAGER), amountToken0ForLP);
+        SafeERC20.safeIncreaseAllowance(IERC20(token1), address(POSITION_MANAGER), amountToken1ForLP);
 
         INonfungiblePositionManager.MintParams
             memory params = INonfungiblePositionManager.MintParams(
                 token0,
                 token1,
-                TICKING_SPACE,
-                initialTick,
-                upperTick,
+                TICK_SPACING,
+                tickSpacedLower,
+                tickSpacedUpper,
                 amountToken0ForLP,
                 amountToken1ForLP,
-                0,
-                0,
+                amount0Min,
+                amount1Min,
                 address(this),
                 block.timestamp,
                 sqrtPriceX96
             );
-
-        token.renounceOwnership();
-        IERC20(token0).approve(address(POSITION_MANAGER), amountToken0ForLP);
-        IERC20(token1).approve(address(POSITION_MANAGER), amountToken1ForLP);
-        emit DebugLog("Minted additional tokens for LP");
-
-        (uint256 tokenId, , , ) = POSITION_MANAGER.mint(params);
+        (uint256 tokenId, , uint256 amount0Minted, uint256 amount1Minted) = POSITION_MANAGER.mint(params);
         emit LPTokenMinted(tokenId);
+
+        if(amount0Minted < amountToken0ForLP){
+            SafeERC20.safeTransfer(IERC20(token0), owner(), amountToken0ForLP - amount0Minted);
+        }
+        if(amount1Minted < amountToken1ForLP){
+            SafeERC20.safeTransfer(IERC20(token1), owner(), amountToken1ForLP - amount1Minted);
+        }
 
         // Deploy the liquidity locker
         address lockerAddress = liquidityLockerFactory.deploy(
@@ -395,19 +370,7 @@ contract Daao is Ownable, ReentrancyGuard {
         emit LockerInitialized(tokenId);
 
         liquidityLocker = lockerAddress;
-        emit DebugLog("Finalize fundraising complete");
-    }
-
-    function setDaoToken(address _daoToken) external onlyOwner {
-        require(_daoToken != address(0), "Invalid DAO token address");
-        require(daoToken == address(0), "DAO token already set");
-        daoToken = _daoToken;
-    }
-
-    function setSecondToken(address _daoToken) external onlyOwner {
-        require(_daoToken != address(0), "Invalid second token address");
-        require(secondToken == address(0), "DAO token already set");
-        secondToken = _daoToken;
+        emit FundraisingFinalized(true);
     }
 
     // Allow contributors to get a refund if the goal is not reached
@@ -421,8 +384,9 @@ contract Daao is Ownable, ReentrancyGuard {
 
         uint256 contributedAmount = contributions[msg.sender];
         contributions[msg.sender] = 0;
+        totalRaised -= contributedAmount;
 
-        payable(msg.sender).transfer(contributedAmount);
+        SafeERC20.safeTransfer(IERC20(MODE), msg.sender, contributedAmount);
 
         emit Refund(msg.sender, contributedAmount);
     }
@@ -431,16 +395,19 @@ contract Daao is Ownable, ReentrancyGuard {
     function execute(
         address[] calldata contracts,
         bytes[] calldata data,
-        uint256[] calldata msgValues
+        uint256[] calldata approveAmounts
     ) external onlyOwner {
-        require(fundraisingFinalized);
+        require(fundraisingFinalized, "fundraisingFinalized is false");
         require(
-            contracts.length == data.length && data.length == msgValues.length,
+            contracts.length == data.length && data.length == approveAmounts.length,
             "Array lengths mismatch"
         );
 
         for (uint256 i = 0; i < contracts.length; i++) {
-            (bool success, ) = contracts[i].call{value: msgValues[i]}(data[i]);
+            if(approveAmounts[i] > 0) {
+                SafeERC20.safeIncreaseAllowance(IERC20(MODE), contracts[i], approveAmounts[i]);
+            }
+            (bool success, ) = contracts[i].call(data[i]);
             require(success, "Call failed");
         }
     }
@@ -459,6 +426,7 @@ contract Daao is Ownable, ReentrancyGuard {
             "Must be owner or protocolAdmin"
         );
         require(!goalReached, "Fundraising goal was reached");
+        require(block.timestamp <= fundraisingDeadline, "can not extend deadline after deadline is passed");
         require(
             newFundraisingDeadline > fundraisingDeadline,
             "new fundraising deadline must be > old one"
@@ -469,15 +437,7 @@ contract Daao is Ownable, ReentrancyGuard {
     function emergencyEscape() external {
         require(msg.sender == protocolAdmin, "must be protocol admin");
         require(!fundraisingFinalized, "fundraising already finalized");
-        (bool success, ) = protocolAdmin.call{value: address(this).balance}("");
-        require(success, "Transfer failed");
-    }
-
-    // Fallback function to make contributions simply by sending ETH to the contract
-    receive() external payable {
-        if (!goalReached && block.timestamp < fundraisingDeadline) {
-            contribute();
-        }
+        SafeERC20.safeTransfer(IERC20(MODE), protocolAdmin, IERC20(MODE).balanceOf(address(this)));
     }
 
     function onERC721Received(
