@@ -4,10 +4,13 @@ pragma solidity ^0.8.0;
 import "./interfaces/ICLPool.sol";
 import "./interfaces/IERC20Minimal.sol";
 import "./interfaces/callback/ICLSwapCallback.sol";
+import {IVelodromeFactory} from "./interface.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract CLPoolRouter is ICLSwapCallback {
-    int256 private _amount0Delta;
-    int256 private _amount1Delta;
+    using SafeERC20 for ERC20;
+    address public constant VELODROM_FACTORY = 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F;
 
     event SwapExecuted(
         address indexed pool,
@@ -20,45 +23,13 @@ contract CLPoolRouter is ICLSwapCallback {
         uint256 outputAmount
     );
 
-    event ApprovalHandled(
-        address indexed token,
-        address indexed owner,
-        uint256 amount
-    );
-
-    function checkApproval(
-        address token,
-        address owner
-    ) external view returns (uint256) {
-        return IERC20Minimal(token).allowance(owner, address(this));
-    }
-
-    function _handleApproval(address token, uint256 amount) internal {
-        IERC20Minimal tokenContract = IERC20Minimal(token);
-        uint256 currentAllowance = tokenContract.allowance(
-            msg.sender,
-            address(this)
-        );
-
-        if (currentAllowance < amount) {
-            if (currentAllowance > 0) {
-                tokenContract.approve(address(this), 0);
-            }
-
-            require(
-                tokenContract.approve(address(this), amount),
-                "Approval failed"
-            );
-
-            emit ApprovalHandled(token, msg.sender, amount);
-        }
-    }
-
     function getSwapResult(
         address pool,
         bool zeroForOne,
         int256 amountSpecified,
-        uint160 sqrtPriceLimitX96
+        uint160 sqrtPriceLimitX96,
+        uint256 minimumOutputAmount,
+        uint256 deadline
     )
         external
         returns (
@@ -67,22 +38,9 @@ contract CLPoolRouter is ICLSwapCallback {
             uint160 nextSqrtRatio
         )
     {
-        address tokenIn = zeroForOne
-            ? ICLPool(pool).token0()
-            : ICLPool(pool).token1();
-        address tokenOut = zeroForOne
-            ? ICLPool(pool).token1()
-            : ICLPool(pool).token0();
-        uint256 amount = uint256(
-            amountSpecified > 0 ? amountSpecified : -amountSpecified
-        );
-
-        _handleApproval(tokenIn, amount);
-
-        IERC20Minimal(tokenIn).transferFrom(msg.sender, pool, amount);
 
         (amount0Delta, amount1Delta) = ICLPool(pool).swap(
-            address(this),
+            msg.sender,
             zeroForOne,
             amountSpecified,
             sqrtPriceLimitX96,
@@ -99,16 +57,8 @@ contract CLPoolRouter is ICLSwapCallback {
             outputAmount = uint256(-amount0Delta);
         }
 
-        if (outputAmount > 0) {
-            uint256 poolBalance = IERC20Minimal(tokenOut).balanceOf(
-                address(this)
-            );
-            require(
-                poolBalance >= outputAmount,
-                "Insufficient pool balance for output"
-            );
-            IERC20Minimal(tokenOut).transfer(msg.sender, outputAmount);
-        }
+        require(outputAmount >= minimumOutputAmount, "Output amount is less than minimum output amount");
+        require(block.timestamp <= deadline, "Deadline exceeded");
 
         emit SwapExecuted(
             pool,
@@ -127,16 +77,23 @@ contract CLPoolRouter is ICLSwapCallback {
         int256 amount1Delta,
         bytes calldata data
     ) external override {
+        address token0 = ICLPool(msg.sender).token0();
+        address token1 = ICLPool(msg.sender).token1();
+        int24 tickSpacing = ICLPool(msg.sender).tickSpacing();
+
+        address pool = IVelodromeFactory(VELODROM_FACTORY).getPool(token0, token1, tickSpacing);
+        require(pool == msg.sender, "Invalid pool");
+
         address sender = abi.decode(data, (address));
 
         if (amount0Delta > 0) {
-            IERC20Minimal(ICLPool(msg.sender).token0()).transferFrom(
+            IERC20Minimal(token0).transferFrom(
                 sender,
                 msg.sender,
                 uint256(amount0Delta)
             );
         } else if (amount1Delta > 0) {
-            IERC20Minimal(ICLPool(msg.sender).token1()).transferFrom(
+            IERC20Minimal(token1).transferFrom(
                 sender,
                 msg.sender,
                 uint256(amount1Delta)
