@@ -84,7 +84,6 @@ contract Daao is Ownable, ReentrancyGuard {
     event PoolInitialized(uint160 sqrtPriceX96);
     event LockerDeployed(address indexed lockerAddress);
     event Refund(address indexed contributor, uint256 amount);
-    event TokenApproved(address indexed token, uint256 amount);
     event UpdateWhitelist(address indexed user, WhitelistTier tier);
     event Contribution(address indexed contributor, uint256 amount);
     event MintDetails(address indexed contributor, uint256 tokensToMint);
