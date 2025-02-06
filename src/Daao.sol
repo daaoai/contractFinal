@@ -14,10 +14,11 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IWETH, INonfungiblePositionManager, IVelodromeFactory, ILockerFactory, ILocker} from "./interface.sol";
 import {FullMath} from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 contract Daao is Ownable, ReentrancyGuard {
+    using EnumerableSet for EnumerableSet.AddressSet;
     using SafeERC20 for ERC20;
-    using TickMath for int24;
 
     enum WhitelistTier {
         None,
@@ -72,11 +73,8 @@ contract Daao is Ownable, ReentrancyGuard {
     mapping(WhitelistTier => uint256) public tierLimits;
     mapping(address => uint256) public contributions;
     
-    mapping(address => uint256) private contributorPosition;
-    mapping(uint256 => address) public contributorIndex;
-    uint256 public contributorsCount;
+    EnumerableSet.AddressSet private contributors;
 
-    event DebugLog(string message);
     event RemoveWhitelist(address);
     event LPTokenMinted(uint256 tokenId);
     event PoolCreated(address indexed pool);
@@ -161,9 +159,7 @@ contract Daao is Ownable, ReentrancyGuard {
             SafeERC20.safeTransferFrom(IERC20(MODE), msg.sender, address(this), effectiveContribution);
 
             if (contributions[msg.sender] == 0) {
-                contributorIndex[contributorsCount] = msg.sender;
-                contributorPosition[msg.sender] = contributorsCount;
-                contributorsCount++;
+                contributors.add(msg.sender);
             }
         }
 
@@ -273,8 +269,9 @@ contract Daao is Ownable, ReentrancyGuard {
 
         fundraisingFinalized = true;
         // Mint and distribute tokens to all contributors
-        for (uint256 i = 0; i < contributorsCount; i++) {
-            address contributor = contributorIndex[i];
+        uint256 contributorCount = contributors.length();
+        for (uint256 i = 0; i < contributorCount; i++) {
+            address contributor = contributors.at(i);
             uint256 contribution = contributions[contributor];
             if(contribution > 0) {
                 uint256 tokensToMint = (contribution * SUPPLY_TO_FUNDRAISERS) /
@@ -386,7 +383,7 @@ contract Daao is Ownable, ReentrancyGuard {
         contributions[msg.sender] = 0;
         totalRaised -= contributedAmount;
 
-        _removeContributor(msg.sender);
+        contributors.remove(msg.sender);
 
         SafeERC20.safeTransfer(IERC20(MODE), msg.sender, contributedAmount);
 
@@ -451,24 +448,15 @@ contract Daao is Ownable, ReentrancyGuard {
         return IERC721Receiver.onERC721Received.selector;
     }
 
-    // Helper function to remove contributor from index
-    function _removeContributor(address contributor) internal {
-        uint256 positionToRemove = contributorPosition[contributor];
-        uint256 lastPosition = contributorsCount - 1;
-        
-        // Only proceed if the contributor exists in the index
-        if (contributorsCount > 0 && contributorIndex[positionToRemove] == contributor) {
-            // If this is not the last element, move the last element to this position
-            if (positionToRemove != lastPosition) {
-                address lastContributor = contributorIndex[lastPosition];
-                contributorIndex[positionToRemove] = lastContributor;
-                contributorPosition[lastContributor] = positionToRemove;
-            }
-            
-            // Delete the last element
-            delete contributorIndex[lastPosition];
-            delete contributorPosition[contributor];
-            contributorsCount--;
-        }
+    function getContributorsCount() external view returns (uint256) {
+        return contributors.length();
+    }
+
+    function getContributorAtIndex(uint256 index) external view returns (address) {
+        return contributors.at(index);
+    }
+
+    function isContributor(address account) external view returns (bool) {
+        return contributors.contains(account);
     }
 }
