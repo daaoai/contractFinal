@@ -72,6 +72,7 @@ contract Daao is Ownable, ReentrancyGuard {
     mapping(WhitelistTier => uint256) public tierLimits;
     mapping(address => uint256) public contributions;
     
+    mapping(address => uint256) private contributorPosition;
     mapping(uint256 => address) public contributorIndex;
     uint256 public contributorsCount;
 
@@ -161,6 +162,7 @@ contract Daao is Ownable, ReentrancyGuard {
 
             if (contributions[msg.sender] == 0) {
                 contributorIndex[contributorsCount] = msg.sender;
+                contributorPosition[msg.sender] = contributorsCount;
                 contributorsCount++;
             }
         }
@@ -384,6 +386,8 @@ contract Daao is Ownable, ReentrancyGuard {
         contributions[msg.sender] = 0;
         totalRaised -= contributedAmount;
 
+        _removeContributor(msg.sender);
+
         SafeERC20.safeTransfer(IERC20(MODE), msg.sender, contributedAmount);
 
         emit Refund(msg.sender, contributedAmount);
@@ -445,5 +449,26 @@ contract Daao is Ownable, ReentrancyGuard {
         bytes calldata
     ) external pure returns (bytes4) {
         return IERC721Receiver.onERC721Received.selector;
+    }
+
+    // Helper function to remove contributor from index
+    function _removeContributor(address contributor) internal {
+        uint256 positionToRemove = contributorPosition[contributor];
+        uint256 lastPosition = contributorsCount - 1;
+        
+        // Only proceed if the contributor exists in the index
+        if (contributorsCount > 0 && contributorIndex[positionToRemove] == contributor) {
+            // If this is not the last element, move the last element to this position
+            if (positionToRemove != lastPosition) {
+                address lastContributor = contributorIndex[lastPosition];
+                contributorIndex[positionToRemove] = lastContributor;
+                contributorPosition[lastContributor] = positionToRemove;
+            }
+            
+            // Delete the last element
+            delete contributorIndex[lastPosition];
+            delete contributorPosition[contributor];
+            contributorsCount--;
+        }
     }
 }
