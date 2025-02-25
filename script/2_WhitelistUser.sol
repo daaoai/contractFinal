@@ -160,7 +160,7 @@ contract WhitelistUser is Script {
             tiers[i] = Daao.WhitelistTier.Gold;
         }
 
-        // First send some MODE tokens to the contract
+        // First send some PAYMENT_TOKEN tokens to the contract
         daosWorldV1.addOrUpdateWhitelist(users, tiers);
 
         // update tier limit if required

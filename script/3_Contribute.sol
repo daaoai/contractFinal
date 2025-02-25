@@ -9,7 +9,7 @@ import {Daao} from "../src/Daao.sol"; // Adjust the path based on your project s
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract WhitelistUser is Script {
 
-    address public constant MODE_TOKEN_ADDRESS = 0xDfc7C877a950e49D2610114102175A06C2e3167a;
+    address public constant PAYMENT_TOKEN = 0xDfc7C877a950e49D2610114102175A06C2e3167a;
     function run() public {
         // Load private key
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
@@ -21,7 +21,7 @@ contract WhitelistUser is Script {
 
         Daao daosWorldV1 = Daao(DAO_CONTRACT_ADDRESS);
 
-        IERC20(MODE_TOKEN_ADDRESS).approve(DAO_CONTRACT_ADDRESS, CONTRIBUTION_AMOUNT);
+        IERC20(PAYMENT_TOKEN).approve(DAO_CONTRACT_ADDRESS, CONTRIBUTION_AMOUNT);
         daosWorldV1.contribute(CONTRIBUTION_AMOUNT);
 
         vm.stopBroadcast();

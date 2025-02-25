@@ -7,9 +7,10 @@ import {Script} from "forge-std/Script.sol";
 import {DaaoToken} from "../src/DaaoToken.sol"; // Adjust the path based on your project structure
 import {Daao} from "../src/Daao.sol"; // Adjust the path based on your project structure
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {LockerFactory} from "../src/LPLocker/LockerFactory.sol";
 contract DeployDaosWorld is Script {
 
-    address public constant MODE_TOKEN_ADDRESS = 0xDfc7C877a950e49D2610114102175A06C2e3167a;
+    address public constant PAYMENT_TOKEN = 0xDfc7C877a950e49D2610114102175A06C2e3167a;
     function run() public {
         // Load private key
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
@@ -24,7 +25,8 @@ contract DeployDaosWorld is Script {
         uint256 fundExpiry = fundraisingDeadline + 30 days; // 1 day after deadline
 
         address daoManager = vm.addr(deployerPrivateKey); // Address derived from the deployer private key
-        address liquidityLockerFactory = address(0xaEDEDdDC448AEE5237f6b3f11Ec370aB5793A0d3); // Replace with actual address
+        address liquidityLockerFactory = address(new LockerFactory()); // Replace with actual address
+        console2.log("Liquidity locker factory is ", liquidityLockerFactory);
 
         address protocolAdmin = daoManager; // Protocol admin same as DAO manager
 
