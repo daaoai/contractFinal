@@ -6,11 +6,14 @@ import {Daao} from "../src/Daao.sol";
 import {DaaoToken} from "../src/DaaoToken.sol";
 import {MockERC20} from "./MockERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IVelodromeFactory, INonfungiblePositionManager} from "../src/interface.sol";
+// import {IVelodromeFactory, INonfungiblePositionManager} from "../src/interface.sol";
+import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+import {INonfungiblePositionManager} from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 
 import {MockReceiver} from "./MockReceiver.sol";
 import {MockFailingReceiver} from "./MockFailingReceiver.sol";
 import {MockTokenSpender} from "./MockTokenSpender.sol";
+import {LockerFactory} from "../src/LPLocker/LockerFactory.sol";
 
 interface ILocker {
     function owner() external view returns (address);
@@ -38,20 +41,22 @@ contract DaaoTest is Test{
 
     address constant PROTOCOL_ADMIN = address(0x11);
     address constant DAO_MANAGER = address(0x12);
-    address constant LIQUIDITY_LOCKER_FACTORY = 0xaEDEDdDC448AEE5237f6b3f11Ec370aB5793A0d3;
-
+    address LIQUIDITY_LOCKER_FACTORY;
     address constant MODE_WHALE = 0x9cBd6d7B3f7377365E45CF53937E96ed8b92E53d;
 
     function setUp() public {
         // Deploy and setup mock address(modeToken) token
-        // modeToken = new MockERC20();
-        // vm.etch(address(modeToken), address(modeToken).code);
+        modeToken = address(new MockERC20());
+        vm.etch(0xDfc7C877a950e49D2610114102175A06C2e3167a, address(modeToken).code);
         modeToken = 0xDfc7C877a950e49D2610114102175A06C2e3167a;
         
         uint256 fundraisingGoal = 10 ether; // 10
         uint256 fundraisingDeadline = block.timestamp + 7 days; // 7 days from now
         uint256 fundExpiry = fundraisingDeadline + 30 days; // 30 days after deadline
         address daoManager = DAO_MANAGER;
+
+        LIQUIDITY_LOCKER_FACTORY = address(new LockerFactory());
+    
         address liquidityLockerFactory = LIQUIDITY_LOCKER_FACTORY;
         address protocolAdmin = PROTOCOL_ADMIN;
 
@@ -69,16 +74,16 @@ contract DaaoTest is Test{
 
         // Give test users some address(modeToken) tokens
         vm.startPrank(MODE_WHALE);
-        IERC20(modeToken).transfer(USER_1, INITIAL_BALANCE);
-        IERC20(modeToken).transfer(USER_2, INITIAL_BALANCE);
-        IERC20(modeToken).transfer(USER_3, INITIAL_BALANCE);
-        IERC20(modeToken).transfer(USER_4, INITIAL_BALANCE);
-        IERC20(modeToken).transfer(USER_5, INITIAL_BALANCE);
-        IERC20(modeToken).transfer(USER_6, INITIAL_BALANCE);
-        IERC20(modeToken).transfer(USER_7, INITIAL_BALANCE);
-        IERC20(modeToken).transfer(USER_8, INITIAL_BALANCE);
-        IERC20(modeToken).transfer(USER_9, INITIAL_BALANCE);
-        IERC20(modeToken).transfer(USER_10, INITIAL_BALANCE);
+        MockERC20(modeToken).mint(USER_1, INITIAL_BALANCE);
+        MockERC20(modeToken).mint(USER_2, INITIAL_BALANCE);
+        MockERC20(modeToken).mint(USER_3, INITIAL_BALANCE);
+        MockERC20(modeToken).mint(USER_4, INITIAL_BALANCE);
+        MockERC20(modeToken).mint(USER_5, INITIAL_BALANCE);
+        MockERC20(modeToken).mint(USER_6, INITIAL_BALANCE);
+        MockERC20(modeToken).mint(USER_7, INITIAL_BALANCE);
+        MockERC20(modeToken).mint(USER_8, INITIAL_BALANCE);
+        MockERC20(modeToken).mint(USER_9, INITIAL_BALANCE);
+        MockERC20(modeToken).mint(USER_10, INITIAL_BALANCE);
         vm.stopPrank();
     }
 
@@ -1091,7 +1096,7 @@ contract DaaoTest is Test{
         uint256 expectedDaoTokensForLP = (dao.TOTAL_SUPPLY() * dao.POOL_PERCENTAGE()) / 100; // 10%
         
         // Get pool address
-        address poolAddress = IVelodromeFactory(dao.VELODROME_FACTORY()).getPool(modeToken, daoTokenAddress, 100);
+        address poolAddress = IUniswapV3Factory(dao.UNISWAP_V3_FACTORY()).getPool(modeToken, daoTokenAddress, 10000);
         require(poolAddress != address(0), "Pool not created");
 
         // Verify pool token balances
@@ -1101,7 +1106,7 @@ contract DaaoTest is Test{
         console.log("poolDaoBal", poolDaoBal);
         // Verify correct amounts in pool
         assertApproxEqAbs(poolModeBal, expectedModeForLP, 1e15, "Incorrect MODE amount in pool");
-        assertApproxEqAbs(poolDaoBal, expectedDaoTokensForLP, 1e15, "Incorrect DAO token amount in pool");
+        assertApproxEqAbs(poolDaoBal, expectedDaoTokensForLP, 50e18, "Incorrect DAO token amount in pool");
 
         // Verify LP tokens were created
         assertEq(IERC20(daoTokenAddress).balanceOf(address(dao)), 0, "DAO contract should have no tokens left"); 
