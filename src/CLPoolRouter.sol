@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "./interfaces/ICLPool.sol";
+import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import "./interfaces/IERC20Minimal.sol";
-import "./interfaces/callback/ICLSwapCallback.sol";
-import {IVelodromeFactory} from "./interface.sol";
+import {IUniswapV3SwapCallback} from "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
+import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract CLPoolRouter is ICLSwapCallback {
+contract CLPoolRouter is IUniswapV3SwapCallback {
     using SafeERC20 for ERC20;
-    address public constant VELODROM_FACTORY = 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F;
+    address public constant UNISWAP_V3_FACTORY = 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F;
 
     event SwapExecuted(
         address indexed pool,
@@ -39,7 +39,7 @@ contract CLPoolRouter is ICLSwapCallback {
         )
     {
 
-        (amount0Delta, amount1Delta) = ICLPool(pool).swap(
+        (amount0Delta, amount1Delta) = IUniswapV3Pool(pool).swap(
             msg.sender,
             zeroForOne,
             amountSpecified,
@@ -47,7 +47,7 @@ contract CLPoolRouter is ICLSwapCallback {
             abi.encode(msg.sender)
         );
 
-        (nextSqrtRatio, , , , , ) = ICLPool(pool).slot0();
+        (nextSqrtRatio, , , , , , ) = IUniswapV3Pool(pool).slot0();
         uint256 outputAmount;
         if (zeroForOne) {
             require(amount1Delta < 0, "Invalid amount1Delta");
@@ -77,11 +77,11 @@ contract CLPoolRouter is ICLSwapCallback {
         int256 amount1Delta,
         bytes calldata data
     ) external override {
-        address token0 = ICLPool(msg.sender).token0();
-        address token1 = ICLPool(msg.sender).token1();
-        int24 tickSpacing = ICLPool(msg.sender).tickSpacing();
+        address token0 = IUniswapV3Pool(msg.sender).token0();
+        address token1 = IUniswapV3Pool(msg.sender).token1();
+        uint24 fee = IUniswapV3Pool(msg.sender).fee();
 
-        address pool = IVelodromeFactory(VELODROM_FACTORY).getPool(token0, token1, tickSpacing);
+        address pool = IUniswapV3Factory(UNISWAP_V3_FACTORY).getPool(token0, token1, fee);
         require(pool == msg.sender, "Invalid pool");
 
         address sender = abi.decode(data, (address));
