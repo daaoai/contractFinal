@@ -2,16 +2,17 @@
 pragma solidity ^0.8.0;
 
 import {DaaoToken} from "./DaaoToken.sol";
-import {ICLPool} from "./interfaces/ICLPool.sol";
-import {ICLFactory} from "./interfaces/ICLFactory.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {IERC721Receiver} from "./LPLocker/IERC721Receiver.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IWETH, INonfungiblePositionManager, IVelodromeFactory, ILockerFactory, ILocker} from "./interface.sol";
+import {ILockerFactory, ILocker} from "./interface.sol";
+import {INonfungiblePositionManager} from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import {FullMath} from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -48,15 +49,15 @@ contract Daao is Ownable, ReentrancyGuard {
     uint256 public SILVER_DEFAULT_LIMIT = 0.1 ether;
     uint256 public PLATINUM_DEFAULT_LIMIT = 1 ether;
 
-    IVelodromeFactory public constant VELODROME_FACTORY =
-        IVelodromeFactory(0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F);
+    IUniswapV3Factory public constant UNISWAP_V3_FACTORY =
+        IUniswapV3Factory(0x961235a9020B05C44DF1026D956D1F4D78014276);
     INonfungiblePositionManager public constant POSITION_MANAGER =
-        INonfungiblePositionManager(0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702);
-    address public constant MODE = 0xDfc7C877a950e49D2610114102175A06C2e3167a;
+        INonfungiblePositionManager(0x3dCc735C74F10FE2B9db2BB55C40fbBbf24490f7);
+    address public constant PAYMENT_TOKEN = 0xDfc7C877a950e49D2610114102175A06C2e3167a;
     ILockerFactory public liquidityLockerFactory;
     address public liquidityLocker;
 
-    int24 private constant TICK_SPACING = 100;
+    uint24 private constant UNISWAP_V3_FEE = 10000;
     uint256 public totalRaised;
     uint256 public fundraisingGoal;
     bool public fundraisingFinalized;
@@ -156,7 +157,7 @@ contract Daao is Ownable, ReentrancyGuard {
         }
 
         if (effectiveContribution > 0) {
-            SafeERC20.safeTransferFrom(IERC20(MODE), msg.sender, address(this), effectiveContribution);
+            SafeERC20.safeTransferFrom(IERC20(PAYMENT_TOKEN), msg.sender, address(this), effectiveContribution);
 
             if (contributions[msg.sender] == 0) {
                 contributors.add(msg.sender);
@@ -282,26 +283,26 @@ contract Daao is Ownable, ReentrancyGuard {
         }
 
         // ADD THE NEW CODE RIGHT HERE, AFTER TOKEN DISTRIBUTION BUT BEFORE POOL CREATION
-        uint256 totalModeCollected = IERC20(MODE).balanceOf(address(this));
-        uint256 modeTokensForLP = (totalModeCollected * LP_PERCENTAGE) / 100; // 10% of WETH for LP
+        uint256 totalPaymentTokenCollected = IERC20(PAYMENT_TOKEN).balanceOf(address(this));
+        uint256 paymentTokensForLP = (totalPaymentTokenCollected * LP_PERCENTAGE) / 100; // 10% of WETH for LP
         uint256 daoTokensForLP = (TOTAL_SUPPLY * POOL_PERCENTAGE) / 100; // 10% of tokens for LP
-        uint256 modeTokensForTreasury = totalModeCollected - modeTokensForLP;
+        uint256 paymentTokensForTreasury = totalPaymentTokenCollected - paymentTokensForLP;
 
-        //Transfer the remaining MODE tokens to the owner
-        SafeERC20.safeTransfer(IERC20(MODE), owner(), modeTokensForTreasury);
+        //Transfer the remaining PAYMENT_TOKEN tokens to the owner
+        SafeERC20.safeTransfer(IERC20(PAYMENT_TOKEN), owner(), paymentTokensForTreasury);
 
         uint256 amountToken0ForLP;
         uint256 amountToken1ForLP;
 
-        if(daoToken < address(MODE)){
+        if(daoToken < address(PAYMENT_TOKEN)){
             token0 = daoToken;
-            token1 = address(MODE);
+            token1 = address(PAYMENT_TOKEN);
             amountToken0ForLP = daoTokensForLP;
-            amountToken1ForLP = modeTokensForLP;
+            amountToken1ForLP = paymentTokensForLP;
         } else {
-            token0 = address(MODE);
+            token0 = address(PAYMENT_TOKEN);
             token1 = daoToken;
-            amountToken0ForLP = modeTokensForLP;
+            amountToken0ForLP = paymentTokensForLP;
             amountToken1ForLP = daoTokensForLP;
         }
 
@@ -310,8 +311,14 @@ contract Daao is Ownable, ReentrancyGuard {
 
         int24 initialTick = TickMath.getTickAtSqrtRatio(sqrtPriceX96);
 
-        int24 tickSpacedLower = int24((initialTick - TICK_SPACING * 1000) / TICK_SPACING) * TICK_SPACING;
-        int24 tickSpacedUpper = int24((initialTick + TICK_SPACING * 1000) / TICK_SPACING) * TICK_SPACING;
+        address pool = UNISWAP_V3_FACTORY.createPool(token0, token1, UNISWAP_V3_FEE);
+        IUniswapV3Pool(pool).initialize(sqrtPriceX96);
+
+        int24 tickSpacing = IUniswapV3Pool(pool).tickSpacing();
+
+
+        int24 tickSpacedLower = int24((initialTick - tickSpacing * 1000) / tickSpacing) * tickSpacing;
+        int24 tickSpacedUpper = int24((initialTick + tickSpacing * 1000) / tickSpacing) * tickSpacing;
 
         token.mint(address(this), daoTokensForLP);
         token.renounceOwnership();
@@ -322,7 +329,7 @@ contract Daao is Ownable, ReentrancyGuard {
             memory params = INonfungiblePositionManager.MintParams(
                 token0,
                 token1,
-                TICK_SPACING,
+                UNISWAP_V3_FEE,
                 tickSpacedLower,
                 tickSpacedUpper,
                 amountToken0ForLP,
@@ -330,8 +337,7 @@ contract Daao is Ownable, ReentrancyGuard {
                 amount0Min,
                 amount1Min,
                 address(this),
-                block.timestamp,
-                sqrtPriceX96
+                block.timestamp
             );
         (uint256 tokenId, , uint256 amount0Minted, uint256 amount1Minted) = POSITION_MANAGER.mint(params);
         emit LPTokenMinted(tokenId);
@@ -385,7 +391,7 @@ contract Daao is Ownable, ReentrancyGuard {
 
         contributors.remove(msg.sender);
 
-        SafeERC20.safeTransfer(IERC20(MODE), msg.sender, contributedAmount);
+        SafeERC20.safeTransfer(IERC20(PAYMENT_TOKEN), msg.sender, contributedAmount);
 
         emit Refund(msg.sender, contributedAmount);
     }
@@ -404,7 +410,7 @@ contract Daao is Ownable, ReentrancyGuard {
 
         for (uint256 i = 0; i < contracts.length; i++) {
             if(approveAmounts[i] > 0) {
-                SafeERC20.safeIncreaseAllowance(IERC20(MODE), contracts[i], approveAmounts[i]);
+                SafeERC20.safeIncreaseAllowance(IERC20(PAYMENT_TOKEN), contracts[i], approveAmounts[i]);
             }
             (bool success, ) = contracts[i].call(data[i]);
             require(success, "Call failed");
@@ -436,7 +442,7 @@ contract Daao is Ownable, ReentrancyGuard {
     function emergencyEscape() external {
         require(msg.sender == protocolAdmin, "must be protocol admin");
         require(!fundraisingFinalized, "fundraising already finalized");
-        SafeERC20.safeTransfer(IERC20(MODE), protocolAdmin, IERC20(MODE).balanceOf(address(this)));
+        SafeERC20.safeTransfer(IERC20(PAYMENT_TOKEN), protocolAdmin, IERC20(PAYMENT_TOKEN).balanceOf(address(this)));
     }
 
     function onERC721Received(
